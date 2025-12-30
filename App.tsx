@@ -59,27 +59,31 @@ const CategorySection = ({ title, category, colorClass, iconColor, competitors }
 const LeaderboardPage: React.FC = () => {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      // Init defaults might fail if not auth, but for public read it is fine if seeded
-      // We skip initDefaults if not auth to avoid 401 on console
-      
-      const cats = await TournamentService.getCategories();
-      setCategories(cats);
+      try {
+        const cats = await TournamentService.getCategories();
+        setCategories(cats);
 
-      const data = await TournamentService.getAll();
-      const sorted = data.sort((a, b) => {
-        const scoreA = a.score ?? -1;
-        const scoreB = b.score ?? -1;
-        if (scoreA !== scoreB) return scoreB - scoreA;
-        return a.createdAt - b.createdAt; 
-      });
-      setCompetitors(sorted);
+        const data = await TournamentService.getAll();
+        const sorted = data.sort((a, b) => {
+          const scoreA = a.score ?? -1;
+          const scoreB = b.score ?? -1;
+          if (scoreA !== scoreB) return scoreB - scoreA;
+          return a.createdAt - b.createdAt; 
+        });
+        setCompetitors(sorted);
+        setError(null);
+      } catch (e: any) {
+        console.error("Erro no Leaderboard:", e);
+        // Não setamos o erro crítico para não travar a UI, apenas logamos
+      }
     };
     
     load();
-    const interval = setInterval(load, 5000); // Polling update
+    const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -117,7 +121,9 @@ const LeaderboardPage: React.FC = () => {
         })}
         {categories.length === 0 && (
           <div className="col-span-full text-center py-12 bg-white rounded-2xl border border-gray-200">
-            <p className="text-gray-500">Nenhuma categoria cadastrada. Faça login para gerenciar.</p>
+            <p className="text-gray-500">
+              {error ? "Erro ao carregar dados." : "Nenhuma categoria cadastrada ou carregando..."}
+            </p>
           </div>
         )}
       </div>
@@ -138,20 +144,29 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
     setError('');
 
     try {
-      // Map 'admin' to the real email required by Supabase
-      const email = user.toLowerCase() === 'admin' ? 'admin@baladeira.com' : user;
-      
-      const { user: authUser, error: authError } = await TournamentService.auth.login(email, pass);
+      let finalEmail = user.trim();
+      let finalPass = pass.trim();
+
+      // --- LÓGICA DE ATALHO ---
+      if (finalEmail.toLowerCase() === 'admin') {
+        finalEmail = 'admin@baladeira.com';
+        if (finalPass === 'admin') {
+          finalPass = 'admin123';
+        }
+      }
+
+      // Chama o serviço (que agora trata erros offline internamente)
+      const { user: authUser, error: authError } = await TournamentService.auth.login(finalEmail, finalPass);
 
       if (authError) {
-        console.error(authError);
-        setError('Falha no login. Verifique usuário e senha.');
+        console.error("Erro Auth:", authError);
+        setError('Credenciais inválidas ou erro de conexão.');
       } else if (authUser) {
-        // Initialize defaults after successful login to ensure categories exist
         await TournamentService.initDefaults();
         onSuccess();
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error(err);
       setError('Erro inesperado ao tentar logar.');
     } finally {
       setLoading(false);
@@ -171,9 +186,9 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" />
-              {error}
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
           
@@ -210,7 +225,7 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
           </button>
         </form>
         <p className="text-xs text-center text-gray-400 mt-4">
-          Utilize o usuário 'admin' criado no Supabase.
+          Modo Offline disponível: Use 'admin' / 'admin'
         </p>
       </div>
     </div>
@@ -228,11 +243,14 @@ const RegistrationPage: React.FC = () => {
 
   useEffect(() => {
     const loadCats = async () => {
-      // Assumes we are logged in, so initDefaults works
-      await TournamentService.initDefaults();
-      const cats = await TournamentService.getCategories();
-      setCategories(cats);
-      if (cats.length > 0) setCategory(cats[0].name);
+      try {
+        await TournamentService.initDefaults();
+        const cats = await TournamentService.getCategories();
+        setCategories(cats);
+        if (cats.length > 0) setCategory(cats[0].name);
+      } catch (e) {
+        console.error("Erro loadReg:", e);
+      }
     };
     loadCats();
   }, []);
@@ -297,7 +315,7 @@ const RegistrationPage: React.FC = () => {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Categoria</label>
             {categories.length === 0 ? (
-              <div className="p-4 bg-yellow-50 text-yellow-800 rounded-xl text-sm">Nenhuma categoria cadastrada. Vá em Gerenciar para adicionar.</div>
+              <div className="p-4 bg-yellow-50 text-yellow-800 rounded-xl text-sm">Carregando categorias ou nenhuma cadastrada...</div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 {categories.map(cat => (
@@ -360,8 +378,10 @@ const ScoringPage: React.FC = () => {
 
   // Reload competitors when searching or after update
   const refreshList = async () => {
-    const data = await TournamentService.getAll();
-    setCompetitors(data);
+    try {
+      const data = await TournamentService.getAll();
+      setCompetitors(data);
+    } catch (e) { console.error(e); }
   };
 
   useEffect(() => {
@@ -389,7 +409,7 @@ const ScoringPage: React.FC = () => {
       setSearchTerm('');
       refreshList();
     } else {
-      alert('Erro ao salvar pontuação. Verifique se você está autenticado.');
+      alert('Erro ao salvar pontuação.');
     }
   };
 
@@ -492,10 +512,12 @@ const ManageParticipantsPage: React.FC = () => {
   const [dbStatus, setDbStatus] = useState<{ok: boolean, message?: string} | null>(null);
 
   const refreshList = async () => {
-    const data = await TournamentService.getAll();
-    setCompetitors(data.sort((a, b) => b.createdAt - a.createdAt));
-    const cats = await TournamentService.getCategories();
-    setCategories(cats);
+    try {
+      const data = await TournamentService.getAll();
+      setCompetitors(data.sort((a, b) => b.createdAt - a.createdAt));
+      const cats = await TournamentService.getCategories();
+      setCategories(cats);
+    } catch(e) { console.error(e); }
   };
 
   useEffect(() => {
@@ -514,7 +536,7 @@ const ManageParticipantsPage: React.FC = () => {
     if (!editName.trim()) return;
     const success = await TournamentService.updateName(id, editName);
     if (!success) {
-      alert("Erro ao salvar. Verifique se está autenticado.");
+      alert("Erro ao salvar.");
       return;
     }
     setEditingId(null);
@@ -583,16 +605,16 @@ const ManageParticipantsPage: React.FC = () => {
             Administração
           </h1>
           {dbStatus && (
-            <div className={`mt-2 text-sm flex items-center gap-2 ${dbStatus.ok ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`mt-2 text-sm flex items-center gap-2 ${dbStatus.ok ? 'text-green-600' : 'text-orange-600'}`}>
               {dbStatus.ok ? (
                 <>
                   <Wifi className="w-4 h-4" />
-                  Banco de Dados Conectado (Modo Seguro)
+                  Conectado ao Servidor
                 </>
               ) : (
                 <>
                   <WifiOff className="w-4 h-4" />
-                  {dbStatus.message}
+                  Modo Offline (Dados Locais)
                 </>
               )}
             </div>
@@ -805,10 +827,11 @@ const BracketPage: React.FC = () => {
 
   useEffect(() => {
     const loadCats = async () => {
-      // Init defaults skipped in public view if not auth
-      const cats = await TournamentService.getCategories();
-      setCategories(cats);
-      if (cats.length > 0) setSelectedCategory(cats[0].name);
+      try {
+        const cats = await TournamentService.getCategories();
+        setCategories(cats);
+        if (cats.length > 0) setSelectedCategory(cats[0].name);
+      } catch (e) { console.error(e); }
     };
     loadCats();
   }, []);
@@ -816,12 +839,14 @@ const BracketPage: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       if (!selectedCategory) return;
-      const data = await TournamentService.getAll();
-      const filtered = data.filter(c => c.category === selectedCategory);
-      // Sort desc by score
-      const sorted = filtered.sort((a, b) => (b.score || 0) - (a.score || 0));
-      // Take top 16
-      setQualifiers(sorted.slice(0, 16));
+      try {
+        const data = await TournamentService.getAll();
+        const filtered = data.filter(c => c.category === selectedCategory);
+        // Sort desc by score
+        const sorted = filtered.sort((a, b) => (b.score || 0) - (a.score || 0));
+        // Take top 16
+        setQualifiers(sorted.slice(0, 16));
+      } catch(e) { console.error(e); }
     };
     load();
   }, [selectedCategory]);
@@ -938,32 +963,29 @@ const App: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // 1. Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAdmin(!!session);
+    // Check initial session (com try/catch implicito do getUser customizado)
+    TournamentService.auth.getUser().then(user => {
+      setIsAdmin(!!user);
     });
 
-    // 2. Listen for auth changes (Login/Logout)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAdmin(!!session);
-      if (!session && currentView !== 'leaderboard' && currentView !== 'bracket') {
-         setCurrentView('leaderboard'); // Redirect to public view on logout
-      }
+    // Listen for Supabase auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Se tiver sessão online, usa. Senão, mantém o estado atual (pra não deslogar o admin offline abruptamente)
+      if (session) setIsAdmin(true);
     });
 
     return () => subscription.unsubscribe();
-  }, [currentView]);
+  }, []);
 
   const handleLoginSuccess = () => {
-    // State is handled by onAuthStateChange, just nav
+    setIsAdmin(true);
     setCurrentView('registration');
   };
 
   const handleLogout = async () => {
     await TournamentService.auth.logout();
-    // State handled by listener
+    setIsAdmin(false);
+    setCurrentView('leaderboard');
   };
 
   // Protected Route Logic
