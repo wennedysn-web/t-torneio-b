@@ -1,24 +1,12 @@
-import Dexie, { type Table } from 'dexie';
+import { createClient } from '@supabase/supabase-js';
 import { Competitor, CategoryDef, TARGET_CONFIGS } from '../types';
 
-// Definição da classe do Banco de Dados
-class TournamentDatabase extends Dexie {
-  competitors!: Table<Competitor, string>;
-  categories!: Table<CategoryDef, number>;
+// Configuração do Supabase
+// Note: Ensure RLS policies are enabled and tables 'categories' and 'competitors' exist in Supabase.
+const SUPABASE_URL = 'https://zwgcmyotzjfwvhgqgcad.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_FP5Ukh5MKYUGJkbV1s3_GQ_F8oBRvRK';
 
-  constructor() {
-    super('BaladeiraTournamentDB');
-    
-    // Versão 1: Inicial
-    // Versão 2: Adiciona categorias
-    (this as any).version(2).stores({
-      competitors: 'id, name, category, score, createdAt',
-      categories: '++id, name, prefix'
-    });
-  }
-}
-
-export const db = new TournamentDatabase();
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Dados para geração aleatória
 const FIRST_NAMES = [
@@ -35,65 +23,169 @@ const LAST_NAMES = [
 ];
 
 export const TournamentService = {
+  // --- Auth Wrapper ---
+  auth: {
+    login: async (email: string, password: string) => {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return { user: data.user, error };
+    },
+    logout: async () => {
+      const { error } = await supabase.auth.signOut();
+      return { error };
+    },
+    getUser: async () => {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+  },
+
+  // --- Health Check ---
+  checkHealth: async (): Promise<{ ok: boolean; message?: string }> => {
+    try {
+      // Tenta fazer uma query leve para verificar se a tabela existe e a conexão está ativa
+      const { error } = await supabase.from('categories').select('count', { count: 'exact', head: true });
+      
+      if (error) {
+        // Código 42P01 indica tabela não encontrada no Postgres
+        if (error.code === '42P01') {
+          return { ok: false, message: 'Tabelas não encontradas. Verifique se o script SQL foi rodado.' };
+        }
+        return { ok: false, message: `Erro de conexão: ${error.message}` };
+      }
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, message: err.message || 'Erro desconhecido' };
+    }
+  },
+
   // --- Initialize ---
   initDefaults: async () => {
-    const count = await db.categories.count();
+    // Verifica se existem categorias
+    const { count, error } = await supabase
+      .from('categories')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      console.error('Erro ao inicializar categorias (Verifique se a tabela existe no Supabase):', error.message || error);
+      return;
+    }
+
     if (count === 0) {
-      await db.categories.bulkAdd([
-        { name: 'Livre', prefix: 'L', color: 'blue' },
-        { name: 'Feminina', prefix: 'F', color: 'pink' }
+      const { error: insertError } = await supabase.from('categories').insert([
+        { name: 'Livre', prefix: 'L' },
+        { name: 'Feminina', prefix: 'F' }
       ]);
+      
+      if (insertError) {
+        console.error('Erro ao criar categorias padrão:', insertError.message || insertError);
+      }
     }
   },
 
   // --- Categories ---
   getCategories: async (): Promise<CategoryDef[]> => {
-    return await db.categories.toArray();
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('id', { ascending: true });
+    
+    if (error) {
+      console.error('Erro ao buscar categorias:', error.message || error);
+      return [];
+    }
+    return (data || []) as CategoryDef[];
   },
 
   addCategory: async (name: string, prefix: string): Promise<void> => {
-    await db.categories.add({ name, prefix: prefix.toUpperCase() });
+    const { error } = await supabase
+      .from('categories')
+      .insert({ name, prefix: prefix.toUpperCase() });
+      
+    if (error) console.error('Erro ao adicionar categoria:', error.message || error);
   },
 
   deleteCategory: async (id: number): Promise<void> => {
-    await db.categories.delete(id);
-  },
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
 
-  getCategoryByPrefix: async (prefix: string): Promise<CategoryDef | undefined> => {
-    return await db.categories.where('prefix').equals(prefix).first();
-  },
-
-  getCategoryByName: async (name: string): Promise<CategoryDef | undefined> => {
-    return await db.categories.where('name').equals(name).first();
+    if (error) console.error('Erro ao deletar categoria:', error.message || error);
   },
 
   // --- Competitors ---
   getAll: async (): Promise<Competitor[]> => {
-    return await db.competitors.toArray();
+    const { data, error } = await supabase
+      .from('competitors')
+      .select('*');
+
+    if (error) {
+      console.error('Erro ao buscar competidores:', error.message || error);
+      return [];
+    }
+
+    if (!data) return [];
+
+    // Mapeamento para garantir que o frontend receba os tipos corretos
+    return data.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      score: row.score,
+      targetsHit: row.targets_hit || [], // Supabase retorna jsonb, mapeamos para array
+      createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now()
+    }));
   },
 
   register: async (name: string, categoryName: string): Promise<{ success: boolean; message: string; competitor?: Competitor }> => {
-    const count = await db.competitors
-      .filter(c => c.name.trim().toLowerCase() === name.trim().toLowerCase())
-      .count();
+    // 1. Verificar limite de inscrições (3 por pessoa)
+    const { count, error: countError } = await supabase
+      .from('competitors')
+      .select('*', { count: 'exact', head: true })
+      .ilike('name', name.trim()); // Case insensitive search
 
-    if (count >= 3) {
+    if (countError) {
+      console.error('Erro ao contar inscrições:', countError.message || countError);
+      return { success: false, message: 'Erro de conexão ao verificar inscrições.' };
+    }
+
+    if ((count || 0) >= 3) {
       return { success: false, message: 'Este participante já possui o limite máximo de 3 inscrições.' };
     }
 
-    // Buscar prefixo da categoria
-    const categoryDef = await db.categories.where('name').equals(categoryName).first();
-    const prefix = categoryDef ? categoryDef.prefix : categoryName.charAt(0).toUpperCase();
+    // 2. Buscar prefixo da categoria
+    const { data: catData, error: catError } = await supabase
+      .from('categories')
+      .select('prefix')
+      .eq('name', categoryName)
+      .single();
 
+    if (catError && catError.code !== 'PGRST116') { // PGRST116 is 'Row not found' which we handle
+        console.error('Erro ao buscar categoria:', catError.message);
+    }
+
+    const prefix = catData ? catData.prefix : categoryName.charAt(0).toUpperCase();
+
+    // 3. Gerar ID Único
     let newId = '';
     let isUnique = false;
     let attempts = 0;
 
-    while (!isUnique && attempts < 100) {
+    // Tentativa otimista de gerar ID
+    while (!isUnique && attempts < 10) {
       const num = Math.floor(Math.random() * 900) + 100;
       newId = `${prefix}${num}`;
       
-      const existing = await db.competitors.get(newId);
+      // Verifica se existe
+      const { data: existing, error: checkError } = await supabase
+        .from('competitors')
+        .select('id')
+        .eq('id', newId)
+        .maybeSingle(); // Use maybeSingle instead of single to avoid error on not found
+      
       if (!existing) {
         isUnique = true;
       }
@@ -104,81 +196,110 @@ export const TournamentService = {
       return { success: false, message: 'Não foi possível gerar um ID único. Tente novamente.' };
     }
 
-    const newCompetitor: Competitor = {
+    // 4. Inserir
+    const newCompetitorPayload = {
+      id: newId,
+      name: name.trim(),
+      category: categoryName,
+      score: null,
+      targets_hit: [],
+      created_at: new Date().toISOString()
+    };
+
+    const { error: insertError } = await supabase
+      .from('competitors')
+      .insert(newCompetitorPayload);
+
+    if (insertError) {
+      console.error('Erro ao inserir competidor:', insertError.message || insertError);
+      return { success: false, message: 'Erro ao salvar no banco de dados.' };
+    }
+
+    // Retorna no formato que o frontend espera
+    const competitor: Competitor = {
       id: newId,
       name: name.trim(),
       category: categoryName,
       score: null,
       targetsHit: [],
-      createdAt: Date.now(),
+      createdAt: Date.now()
     };
 
-    await db.competitors.add(newCompetitor);
-    return { success: true, message: 'Inscrição realizada com sucesso!', competitor: newCompetitor };
+    return { success: true, message: 'Inscrição realizada com sucesso!', competitor };
   },
 
   updateScore: async (id: string, targetsHit: number[]): Promise<boolean> => {
     const totalScore = targetsHit.reduce((a, b) => a + b, 0);
     
-    const updated = await db.competitors.update(id, {
-      score: totalScore,
-      targetsHit: targetsHit
-    });
+    const { error } = await supabase
+      .from('competitors')
+      .update({
+        score: totalScore,
+        targets_hit: targetsHit
+      })
+      .eq('id', id);
 
-    return updated === 1;
+    if (error) {
+        console.error('Erro ao atualizar pontuação:', error.message || error);
+        return false;
+    }
+    return true;
   },
 
   updateName: async (id: string, newName: string): Promise<boolean> => {
-    const updated = await db.competitors.update(id, {
-      name: newName.trim()
-    });
-    return updated === 1;
+    const { error } = await supabase
+      .from('competitors')
+      .update({ name: newName.trim() })
+      .eq('id', id);
+      
+    if (error) {
+        console.error('Erro ao atualizar nome:', error.message || error);
+        return false;
+    }
+    return true;
   },
 
   deleteCompetitor: async (id: string): Promise<void> => {
-    await db.competitors.delete(id);
-  },
-
-  reset: async () => {
-    await db.competitors.clear();
+    const { error } = await supabase.from('competitors').delete().eq('id', id);
+    if (error) console.error('Erro ao deletar competidor:', error.message || error);
   },
 
   // Nova função para gerar dados de teste
   seedDatabase: async (): Promise<void> => {
-    // Ensure default categories exist
     await TournamentService.initDefaults();
-    const categories = await db.categories.toArray();
+    
+    // Obter categorias
+    const { data: categories, error: catError } = await supabase.from('categories').select('*');
+    if (catError || !categories) {
+        console.error('Erro ao obter categorias para seed:', catError?.message);
+        return;
+    }
 
-    const newCompetitors: Competitor[] = [];
+    // Carregar IDs existentes para evitar colisão (simplificado para o seed)
+    const { data: existingData } = await supabase.from('competitors').select('id');
+    const existingIds = new Set(existingData?.map(d => d.id) || []);
 
-    // Carrega IDs existentes para evitar colisão na geração
-    const existingKeys = await db.competitors.toCollection().primaryKeys();
-    const existingIds = new Set(existingKeys);
-
+    const newCompetitors = [];
+    
     // Flatten available targets for simulation
     const targetPool: number[] = [];
     TARGET_CONFIGS.forEach(conf => {
       for (let i = 0; i < conf.count; i++) targetPool.push(conf.points);
     });
 
-    // Função auxiliar para embaralhar array
     const shuffle = (array: any[]) => array.sort(() => Math.random() - 0.5);
 
     for (const cat of categories) {
       for (let i = 0; i < 15; i++) { // 15 por categoria
-        // Generate Random Name
         const name = `${FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]}`;
         
-        // Generate Unique ID
         let id = '';
         let unique = false;
         let attempts = 0;
         
-        // Tenta gerar ID único (Ex: L1000 - L9999 para diferenciar dos manuais)
         while (!unique && attempts < 200) {
            const num = Math.floor(Math.random() * 9000) + 1000; 
            id = `${cat.prefix}${num}`;
-           
            if (!existingIds.has(id) && !newCompetitors.find(c => c.id === id)) {
              unique = true;
            }
@@ -196,16 +317,19 @@ export const TournamentService = {
               name,
               category: cat.name,
               score,
-              targetsHit,
-              createdAt: Date.now() + i, 
+              targets_hit: targetsHit,
+              created_at: new Date().toISOString()
             });
         }
       }
     }
     
-    // Usamos bulkPut ao invés de bulkAdd para evitar erros caso algum ID escape da verificação
     if (newCompetitors.length > 0) {
-        await db.competitors.bulkPut(newCompetitors);
+        const { error } = await supabase.from('competitors').insert(newCompetitors);
+        if (error) {
+            console.error('Erro ao inserir dados de seed:', error.message);
+            throw error;
+        }
     }
   }
 };

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
-import { TournamentService } from './services/storage';
+import { TournamentService, supabase } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff } from 'lucide-react';
 
 // --- COMPONENTS ---
 
@@ -62,7 +62,9 @@ const LeaderboardPage: React.FC = () => {
 
   useEffect(() => {
     const load = async () => {
-      await TournamentService.initDefaults(); // Ensure DB is seeded with minimal data
+      // Init defaults might fail if not auth, but for public read it is fine if seeded
+      // We skip initDefaults if not auth to avoid 401 on console
+      
       const cats = await TournamentService.getCategories();
       setCategories(cats);
 
@@ -115,7 +117,7 @@ const LeaderboardPage: React.FC = () => {
         })}
         {categories.length === 0 && (
           <div className="col-span-full text-center py-12 bg-white rounded-2xl border border-gray-200">
-            <p className="text-gray-500">Nenhuma categoria cadastrada. Acesse o painel Gerenciar.</p>
+            <p className="text-gray-500">Nenhuma categoria cadastrada. Faça login para gerenciar.</p>
           </div>
         )}
       </div>
@@ -128,13 +130,31 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (user === 'admin' && pass === 'admin') {
-      onSuccess();
-    } else {
-      setError('Credenciais inválidas. Tente novamente.');
+    setLoading(true);
+    setError('');
+
+    try {
+      // Map 'admin' to the real email required by Supabase
+      const email = user.toLowerCase() === 'admin' ? 'admin@baladeira.com' : user;
+      
+      const { user: authUser, error: authError } = await TournamentService.auth.login(email, pass);
+
+      if (authError) {
+        console.error(authError);
+        setError('Falha no login. Verifique usuário e senha.');
+      } else if (authUser) {
+        // Initialize defaults after successful login to ensure categories exist
+        await TournamentService.initDefaults();
+        onSuccess();
+      }
+    } catch (err) {
+      setError('Erro inesperado ao tentar logar.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -146,7 +166,7 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
             <User className="w-8 h-8 text-wood-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800">Acesso Restrito</h2>
-          <p className="text-gray-500 mt-2">Área administrativa do torneio</p>
+          <p className="text-gray-500 mt-2">Área administrativa segura</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -165,6 +185,7 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
               onChange={(e) => setUser(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none transition-all"
               placeholder="Digite o usuário"
+              required
             />
           </div>
           
@@ -176,16 +197,21 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
               onChange={(e) => setPass(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none transition-all"
               placeholder="Digite a senha"
+              required
             />
           </div>
 
           <button 
             type="submit"
-            className="w-full bg-wood-600 text-white py-3 rounded-lg font-bold hover:bg-wood-700 transition-colors shadow-lg shadow-wood-600/20"
+            disabled={loading}
+            className={`w-full bg-wood-600 text-white py-3 rounded-lg font-bold hover:bg-wood-700 transition-colors shadow-lg shadow-wood-600/20 flex justify-center items-center ${loading ? 'opacity-70 cursor-wait' : ''}`}
           >
-            Entrar
+            {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Entrar'}
           </button>
         </form>
+        <p className="text-xs text-center text-gray-400 mt-4">
+          Utilize o usuário 'admin' criado no Supabase.
+        </p>
       </div>
     </div>
   );
@@ -202,6 +228,7 @@ const RegistrationPage: React.FC = () => {
 
   useEffect(() => {
     const loadCats = async () => {
+      // Assumes we are logged in, so initDefaults works
       await TournamentService.initDefaults();
       const cats = await TournamentService.getCategories();
       setCategories(cats);
@@ -362,7 +389,7 @@ const ScoringPage: React.FC = () => {
       setSearchTerm('');
       refreshList();
     } else {
-      alert('Erro ao salvar pontuação.');
+      alert('Erro ao salvar pontuação. Verifique se você está autenticado.');
     }
   };
 
@@ -461,6 +488,9 @@ const ManageParticipantsPage: React.FC = () => {
   const [newCatName, setNewCatName] = useState('');
   const [newCatPrefix, setNewCatPrefix] = useState('');
 
+  // --- DB Status ---
+  const [dbStatus, setDbStatus] = useState<{ok: boolean, message?: string} | null>(null);
+
   const refreshList = async () => {
     const data = await TournamentService.getAll();
     setCompetitors(data.sort((a, b) => b.createdAt - a.createdAt));
@@ -470,6 +500,8 @@ const ManageParticipantsPage: React.FC = () => {
 
   useEffect(() => {
     refreshList();
+    // Check DB health
+    TournamentService.checkHealth().then(status => setDbStatus(status));
   }, []);
 
   // -- Participant Handlers
@@ -480,7 +512,11 @@ const ManageParticipantsPage: React.FC = () => {
 
   const handleSave = async (id: string) => {
     if (!editName.trim()) return;
-    await TournamentService.updateName(id, editName);
+    const success = await TournamentService.updateName(id, editName);
+    if (!success) {
+      alert("Erro ao salvar. Verifique se está autenticado.");
+      return;
+    }
     setEditingId(null);
     refreshList();
   };
@@ -541,10 +577,27 @@ const ManageParticipantsPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-8">
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <Settings className="w-8 h-8 text-wood-600" />
-          Administração
-        </h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <Settings className="w-8 h-8 text-wood-600" />
+            Administração
+          </h1>
+          {dbStatus && (
+            <div className={`mt-2 text-sm flex items-center gap-2 ${dbStatus.ok ? 'text-green-600' : 'text-red-600'}`}>
+              {dbStatus.ok ? (
+                <>
+                  <Wifi className="w-4 h-4" />
+                  Banco de Dados Conectado (Modo Seguro)
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4" />
+                  {dbStatus.message}
+                </>
+              )}
+            </div>
+          )}
+        </div>
         
         <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
           <button
@@ -752,7 +805,7 @@ const BracketPage: React.FC = () => {
 
   useEffect(() => {
     const loadCats = async () => {
-      await TournamentService.initDefaults();
+      // Init defaults skipped in public view if not auth
       const cats = await TournamentService.getCategories();
       setCategories(cats);
       if (cats.length > 0) setSelectedCategory(cats[0].name);
@@ -884,23 +937,33 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState('leaderboard');
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Simple persisted auth state for session
   useEffect(() => {
-    const session = sessionStorage.getItem('isAdmin');
-    if (session === 'true') setIsAdmin(true);
-  }, []);
+    // 1. Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAdmin(!!session);
+    });
+
+    // 2. Listen for auth changes (Login/Logout)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAdmin(!!session);
+      if (!session && currentView !== 'leaderboard' && currentView !== 'bracket') {
+         setCurrentView('leaderboard'); // Redirect to public view on logout
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [currentView]);
 
   const handleLoginSuccess = () => {
-    setIsAdmin(true);
-    sessionStorage.setItem('isAdmin', 'true');
-    // Navigate to the view they likely wanted, defaulting to registration
+    // State is handled by onAuthStateChange, just nav
     setCurrentView('registration');
   };
 
-  const handleLogout = () => {
-    setIsAdmin(false);
-    sessionStorage.removeItem('isAdmin');
-    setCurrentView('leaderboard');
+  const handleLogout = async () => {
+    await TournamentService.auth.logout();
+    // State handled by listener
   };
 
   // Protected Route Logic
