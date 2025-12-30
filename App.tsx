@@ -3,13 +3,73 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale } from 'lucide-react';
+
+// --- UTILS ---
+
+const getHighCard = (c: Competitor): number => {
+  if (!c.targetsHit || c.targetsHit.length === 0) return 0;
+  return Math.max(...c.targetsHit);
+};
+
+// Verifica se dois competidores estão PERFEITAMENTE empatados (Mesmo Score TOTAL e Mesmos ALVOS individuais)
+const isPerfectTie = (a: Competitor, b: Competitor): boolean => {
+  if (a.score !== b.score) return false;
+  
+  const targetsA = [...(a.targetsHit || [])].sort((x, y) => x - y);
+  const targetsB = [...(b.targetsHit || [])].sort((x, y) => x - y);
+
+  if (targetsA.length !== targetsB.length) return false;
+
+  return targetsA.every((val, index) => val === targetsB[index]);
+};
+
+// Sort Logic: Total Score -> Highest Individual Hit (Smallest Target) -> Created Date
+const sortCompetitors = (competitors: Competitor[]) => {
+  return [...competitors].sort((a, b) => {
+    const scoreA = a.score ?? -1;
+    const scoreB = b.score ?? -1;
+    
+    // 1. Total Score
+    if (scoreA !== scoreB) return scoreB - scoreA;
+    
+    // 2. Tie-break: Highest Single Target Hit (Which corresponds to the Smallest Target)
+    const maxA = getHighCard(a);
+    const maxB = getHighCard(b);
+    if (maxA !== maxB) return maxB - maxA;
+
+    // 3. Fallback: Creation Date (First to register)
+    return a.createdAt - b.createdAt; 
+  });
+};
 
 // --- COMPONENTS ---
 
 const CategorySection = ({ title, category, colorClass, iconColor, competitors }: { title: string, category: string, colorClass: string, iconColor: string, competitors: Competitor[] }) => {
   const list = competitors.filter(c => c.category === category);
+  // Sort ensures leaderboard reflects the tie-break rules
+  const sortedList = sortCompetitors(list);
   
+  // Lógica para calcular ranking considerando empates
+  // Se index 1 empatar com index 0, ambos são Rank 1. O index 2 será Rank 3.
+  const getRank = (index: number, currentComp: Competitor) => {
+    if (index === 0) return 1;
+    const prevComp = sortedList[index - 1];
+    
+    // Se for empate técnico perfeito, mantém o rank anterior
+    if (isPerfectTie(currentComp, prevComp)) {
+      // Recursivamente busca o rank do anterior (caso haja empate triplo)
+      // Para simplificar na renderização, vamos calcular baseado no primeiro que não empatou
+      let lookBack = index - 1;
+      while (lookBack >= 0 && isPerfectTie(sortedList[lookBack], currentComp)) {
+        lookBack--;
+      }
+      return lookBack + 2; // +1 pelo index zero, +1 pelo próximo
+    }
+    
+    return index + 1;
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-h-[400px]">
       <div className={`px-6 py-4 border-b border-gray-100 ${colorClass} bg-opacity-10 flex items-center gap-3`}>
@@ -17,35 +77,70 @@ const CategorySection = ({ title, category, colorClass, iconColor, competitors }
         <h2 className={`text-xl font-bold ${iconColor}`}>{title}</h2>
       </div>
       <div className="overflow-y-auto flex-1 p-4">
-        {list.length === 0 ? (
+        {sortedList.length === 0 ? (
           <div className="text-center py-10 text-gray-400">
             Nenhum competidor registrado.
           </div>
         ) : (
           <div className="space-y-3">
-            {list.map((comp, index) => (
-              <div key={comp.id} className="flex items-center bg-gray-50 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
-                <div className={`
-                  w-8 h-8 flex items-center justify-center rounded-full font-bold mr-4 shrink-0
-                  ${index === 0 ? 'bg-yellow-100 text-yellow-700' : 
-                    index === 1 ? 'bg-gray-200 text-gray-700' : 
-                    index === 2 ? 'bg-orange-100 text-orange-800' : 'bg-white text-gray-500 border border-gray-200'}
-                `}>
-                  {index + 1}
+            {sortedList.map((comp, index) => {
+              const prevComp = index > 0 ? sortedList[index - 1] : null;
+              const isTied = prevComp && isPerfectTie(comp, prevComp);
+              
+              // Define a posição visual. Se empatado, usa a mesma do anterior.
+              // Nota: Isso é apenas visual. O index continua existindo.
+              let displayRank = index + 1;
+              if (isTied) {
+                 // Encontra o rank original do grupo de empate
+                 let i = index;
+                 while(i > 0 && isPerfectTie(sortedList[i], sortedList[i-1])) {
+                   i--;
+                 }
+                 displayRank = i + 1;
+              }
+
+              return (
+                <div key={comp.id} className={`flex items-center p-3 rounded-xl border transition-colors relative ${isTied ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
+                  
+                  {/* Rank Badge */}
+                  <div className={`
+                    w-8 h-8 flex items-center justify-center rounded-full font-bold mr-4 shrink-0
+                    ${displayRank === 1 ? 'bg-yellow-100 text-yellow-700' : 
+                      displayRank === 2 ? 'bg-gray-200 text-gray-700' : 
+                      displayRank === 3 ? 'bg-orange-100 text-orange-800' : 'bg-white text-gray-500 border border-gray-200'}
+                  `}>
+                    {displayRank}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <div className="font-semibold text-gray-800 truncate">{comp.name}</div>
+                        {isTied && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                <Scale className="w-3 h-3" />
+                                Empate Técnico
+                            </span>
+                        )}
+                    </div>
+                    <div className="text-xs text-gray-500 font-mono flex gap-2">
+                      <span>ID: {comp.id}</span>
+                      {comp.score !== null && (
+                         <span title="Critério de Desempate: Menor alvo atingido (maior pontuação individual)">
+                           (Menor Alvo: {getHighCard(comp)})
+                         </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right pl-4">
+                    {comp.score === null ? (
+                      <span className="text-xs px-2 py-1 bg-gray-200 text-gray-500 rounded-md">Pendente</span>
+                    ) : (
+                      <span className="text-xl font-bold text-wood-700">{comp.score}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-gray-800 truncate">{comp.name}</div>
-                  <div className="text-xs text-gray-500 font-mono">ID: {comp.id}</div>
-                </div>
-                <div className="text-right pl-4">
-                  {comp.score === null ? (
-                    <span className="text-xs px-2 py-1 bg-gray-200 text-gray-500 rounded-md">Pendente</span>
-                  ) : (
-                    <span className="text-xl font-bold text-wood-700">{comp.score}</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -68,17 +163,10 @@ const LeaderboardPage: React.FC = () => {
         setCategories(cats);
 
         const data = await TournamentService.getAll();
-        const sorted = data.sort((a, b) => {
-          const scoreA = a.score ?? -1;
-          const scoreB = b.score ?? -1;
-          if (scoreA !== scoreB) return scoreB - scoreA;
-          return a.createdAt - b.createdAt; 
-        });
-        setCompetitors(sorted);
+        setCompetitors(data); // Sorting happens in CategorySection for display
         setError(null);
       } catch (e: any) {
         console.error("Erro no Leaderboard:", e);
-        // Não setamos o erro crítico para não travar a UI, apenas logamos
       }
     };
     
@@ -499,8 +587,16 @@ const ManageParticipantsPage: React.FC = () => {
   // --- Participants Logic ---
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null);
   const [editName, setEditName] = useState('');
+
+  // Reset Modal State
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+
   const [isSeeding, setIsSeeding] = useState(false);
 
   // --- Categories Logic ---
@@ -514,7 +610,7 @@ const ManageParticipantsPage: React.FC = () => {
   const refreshList = async () => {
     try {
       const data = await TournamentService.getAll();
-      setCompetitors(data.sort((a, b) => b.createdAt - a.createdAt));
+      setCompetitors(sortCompetitors(data)); // Usando a mesma ordenação do ranking
       const cats = await TournamentService.getCategories();
       setCategories(cats);
     } catch(e) { console.error(e); }
@@ -527,26 +623,38 @@ const ManageParticipantsPage: React.FC = () => {
   }, []);
 
   // -- Participant Handlers
-  const handleEdit = (comp: Competitor) => {
-    setEditingId(comp.id);
+  const openEditModal = (comp: Competitor) => {
+    setEditingCompetitor(comp);
     setEditName(comp.name);
+    setIsEditModalOpen(true);
   };
 
-  const handleSave = async (id: string) => {
-    if (!editName.trim()) return;
-    const success = await TournamentService.updateName(id, editName);
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingCompetitor(null);
+    setEditName('');
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCompetitor || !editName.trim()) return;
+    
+    const success = await TournamentService.updateName(editingCompetitor.id, editName);
     if (!success) {
       alert("Erro ao salvar.");
       return;
     }
-    setEditingId(null);
+    closeEditModal();
     refreshList();
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este participante? Esta ação não pode ser desfeita.')) {
+      // 1. Atualização Otimista: Remove da UI imediatamente e não recarrega para evitar race conditions
+      setCompetitors(current => current.filter(c => c.id !== id));
+      
+      // 2. Chama o serviço em segundo plano
       await TournamentService.deleteCompetitor(id);
-      refreshList();
     }
   };
 
@@ -564,6 +672,24 @@ const ManageParticipantsPage: React.FC = () => {
         setIsSeeding(false);
       }
     }
+  };
+
+  const handleResetData = async (e: React.FormEvent) => {
+      e.preventDefault();
+      // Verificação simples de senha (Admin Offline ou senha padrão)
+      if (resetPassword === 'admin' || resetPassword === 'admin123') {
+          const confirmed = await TournamentService.deleteAllCompetitors();
+          if (confirmed) {
+              alert("Todos os dados foram excluídos.");
+              setIsResetModalOpen(false);
+              setResetPassword('');
+              refreshList();
+          } else {
+              alert("Erro ao tentar excluir.");
+          }
+      } else {
+          alert("Senha incorreta.");
+      }
   };
 
   // -- Category Handlers
@@ -641,7 +767,14 @@ const ManageParticipantsPage: React.FC = () => {
 
       {activeTab === 'participants' && (
         <div className="space-y-4 animate-fade-in">
-           <div className="flex justify-end">
+           <div className="flex flex-wrap justify-end gap-3">
+            <button 
+              onClick={() => setIsResetModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors shadow-sm text-sm font-medium"
+            >
+              <Trash2 className="w-4 h-4" />
+              Limpar Tudo
+            </button>
             <button 
               onClick={handleSeed}
               disabled={isSeeding}
@@ -682,17 +815,9 @@ const ManageParticipantsPage: React.FC = () => {
                     <tr key={comp.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-mono text-sm text-gray-500">{comp.id}</td>
                       <td className="px-6 py-4">
-                        {editingId === comp.id ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              className="px-3 py-1 border rounded-lg focus:ring-2 focus:ring-wood-500 outline-none w-full"
-                            />
-                          </div>
-                        ) : (
-                          <span className="font-medium text-gray-900">{comp.name}</span>
+                        <div className="font-medium text-gray-900">{comp.name}</div>
+                        {comp.score !== null && (
+                            <div className="text-xs text-gray-400">Menor Alvo: {getHighCard(comp)}</div>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -704,25 +829,14 @@ const ManageParticipantsPage: React.FC = () => {
                         {comp.score !== null ? comp.score : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {editingId === comp.id ? (
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => handleSave(comp.id)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg">
-                              <Save className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => setEditingId(null)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => handleEdit(comp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                            <button onClick={() => openEditModal(comp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDelete(comp.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                            <button onClick={() => handleDelete(comp.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Excluir">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                        )}
                       </td>
                     </tr>
                   ))}
@@ -815,6 +929,106 @@ const ManageParticipantsPage: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {/* Edit Modal */}
+      {isEditModalOpen && editingCompetitor && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-all">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform scale-100 transition-all">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Editar Participante</h3>
+                  <p className="text-xs text-gray-500">Atualize os dados cadastrais</p>
+                </div>
+                <button onClick={closeEditModal} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded-full transition-colors">
+                    <X className="w-5 h-5" />
+                </button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="p-6">
+                <div className="mb-4">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Número de Inscrição</label>
+                    <div className="font-mono font-bold text-gray-700 bg-gray-100 px-4 py-3 rounded-xl border border-gray-200 flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-gray-400" />
+                        {editingCompetitor.id}
+                    </div>
+                </div>
+                <div className="mb-8">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Nome Completo</label>
+                    <input 
+                        type="text" 
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none transition-all text-lg text-gray-900"
+                        autoFocus
+                        placeholder="Digite o novo nome"
+                    />
+                </div>
+                <div className="flex gap-3 justify-end">
+                    <button 
+                        type="button" 
+                        onClick={closeEditModal}
+                        className="px-6 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        type="submit"
+                        className="px-6 py-3 bg-wood-600 text-white font-bold rounded-xl hover:bg-wood-700 transition-colors shadow-lg shadow-wood-600/20 flex items-center gap-2"
+                    >
+                        <Save className="w-4 h-4" />
+                        Salvar Alterações
+                    </button>
+                </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Modal */}
+      {isResetModalOpen && (
+         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in border-2 border-red-100">
+                 <div className="p-6 text-center">
+                     <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                         <AlertTriangle className="w-8 h-8 text-red-600" />
+                     </div>
+                     <h3 className="text-xl font-bold text-gray-900 mb-2">Excluir Todos os Dados?</h3>
+                     <p className="text-gray-500 text-sm mb-6">
+                         Isso irá apagar <strong>permanentemente</strong> todos os participantes e pontuações. Esta ação não pode ser desfeita.
+                     </p>
+                     
+                     <form onSubmit={handleResetData}>
+                         <div className="mb-6 text-left">
+                             <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Confirme sua senha</label>
+                             <input 
+                                 type="password" 
+                                 value={resetPassword}
+                                 onChange={(e) => setResetPassword(e.target.value)}
+                                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                                 placeholder="Senha de Admin"
+                                 autoFocus
+                                 required
+                             />
+                         </div>
+                         <div className="flex gap-2">
+                             <button 
+                                 type="button" 
+                                 onClick={() => { setIsResetModalOpen(false); setResetPassword(''); }}
+                                 className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl"
+                             >
+                                 Cancelar
+                             </button>
+                             <button 
+                                 type="submit" 
+                                 className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20"
+                             >
+                                 Sim, Excluir
+                             </button>
+                         </div>
+                     </form>
+                 </div>
+             </div>
+         </div>
+      )}
     </div>
   );
 };
@@ -842,8 +1056,8 @@ const BracketPage: React.FC = () => {
       try {
         const data = await TournamentService.getAll();
         const filtered = data.filter(c => c.category === selectedCategory);
-        // Sort desc by score
-        const sorted = filtered.sort((a, b) => (b.score || 0) - (a.score || 0));
+        // Use global sort logic (Score > MaxHit > Date)
+        const sorted = sortCompetitors(filtered);
         // Take top 16
         setQualifiers(sorted.slice(0, 16));
       } catch(e) { console.error(e); }
@@ -870,14 +1084,20 @@ const BracketPage: React.FC = () => {
         <span className={`font-semibold truncate ${p1 ? 'text-gray-800' : 'text-gray-400'}`}>
           {p1 ? `#${qualifiers.indexOf(p1) + 1} ${p1.name}` : 'A definir'}
         </span>
-        <span className="text-gray-500 font-mono text-xs">{p1?.score ?? '-'}</span>
+        <div className="flex flex-col items-end">
+            <span className="text-gray-500 font-mono text-xs">{p1?.score ?? '-'}</span>
+            {p1?.score && <span className="text-[10px] text-gray-400">Menor Alvo: {getHighCard(p1)}</span>}
+        </div>
       </div>
       <div className="h-px bg-gray-200"></div>
       <div className={`p-2 flex justify-between items-center ${p2 ? 'bg-gray-50' : 'bg-gray-100'}`}>
         <span className={`font-semibold truncate ${p2 ? 'text-gray-800' : 'text-gray-400'}`}>
            {p2 ? `#${qualifiers.indexOf(p2) + 1} ${p2.name}` : 'A definir'}
         </span>
-        <span className="text-gray-500 font-mono text-xs">{p2?.score ?? '-'}</span>
+        <div className="flex flex-col items-end">
+            <span className="text-gray-500 font-mono text-xs">{p2?.score ?? '-'}</span>
+            {p2?.score && <span className="text-[10px] text-gray-400">Menor Alvo: {getHighCard(p2)}</span>}
+        </div>
       </div>
     </div>
   );

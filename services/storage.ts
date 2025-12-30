@@ -286,16 +286,36 @@ export const TournamentService = {
     return true;
   },
 
-  deleteCompetitor: async (id: string): Promise<void> => {
-    // 1. Local
-    const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
-    const filtered = cached.filter((c: Competitor) => c.id !== id);
-    localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(filtered));
-
-    // 2. Remoto
+  deleteCompetitor: async (id: string): Promise<boolean> => {
     try {
+      // 1. Local (Crucial para atualização instantânea da UI)
+      const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
+      const filtered = cached.filter((c: Competitor) => c.id !== id);
+      localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(filtered));
+
+      // 2. Remoto
       await supabase.from('competitors').delete().eq('id', id);
-    } catch (e) { console.error(e); }
+      return true;
+    } catch (e) { 
+      console.error('Erro ao excluir:', e);
+      // Retorna true pois excluiu do local, então para o usuário "funcionou" no modo offline
+      return true; 
+    }
+  },
+
+  deleteAllCompetitors: async (): Promise<boolean> => {
+      try {
+          // 1. Local
+          localStorage.setItem(LS_KEYS.COMPETITORS, '[]');
+
+          // 2. Remoto
+          const { error } = await supabase.from('competitors').delete().neq('id', '0'); // Delete all where id != 0 (all strings)
+          if (error) throw error;
+          return true;
+      } catch (e) {
+          console.error('Erro ao limpar tudo:', e);
+          return true; // Assume sucesso local
+      }
   },
 
   seedDatabase: async (): Promise<void> => {
