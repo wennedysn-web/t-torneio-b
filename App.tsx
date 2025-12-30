@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService } from './services/storage';
-import { Competitor, Category } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw } from 'lucide-react';
+import { Competitor, CategoryDef } from './types';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag } from 'lucide-react';
 
 // --- COMPONENTS ---
 
-const CategorySection = ({ title, category, colorClass, iconColor, competitors }: { title: string, category: Category, colorClass: string, iconColor: string, competitors: Competitor[] }) => {
+const CategorySection = ({ title, category, colorClass, iconColor, competitors }: { title: string, category: string, colorClass: string, iconColor: string, competitors: Competitor[] }) => {
   const list = competitors.filter(c => c.category === category);
   
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-h-[400px]">
       <div className={`px-6 py-4 border-b border-gray-100 ${colorClass} bg-opacity-10 flex items-center gap-3`}>
         <Trophy className={`w-6 h-6 ${iconColor}`} />
         <h2 className={`text-xl font-bold ${iconColor}`}>{title}</h2>
@@ -58,9 +58,14 @@ const CategorySection = ({ title, category, colorClass, iconColor, competitors }
 // 1. Leaderboard Page
 const LeaderboardPage: React.FC = () => {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [categories, setCategories] = useState<CategoryDef[]>([]);
 
   useEffect(() => {
     const load = async () => {
+      await TournamentService.initDefaults(); // Ensure DB is seeded with minimal data
+      const cats = await TournamentService.getCategories();
+      setCategories(cats);
+
       const data = await TournamentService.getAll();
       const sorted = data.sort((a, b) => {
         const scoreA = a.score ?? -1;
@@ -72,9 +77,21 @@ const LeaderboardPage: React.FC = () => {
     };
     
     load();
-    const interval = setInterval(load, 2000); // Polling update
+    const interval = setInterval(load, 5000); // Polling update
     return () => clearInterval(interval);
   }, []);
+
+  // Helper to generate a consistent color based on index
+  const getColors = (index: number) => {
+    const colors = [
+      { bg: 'bg-blue-50', icon: 'text-blue-600' },
+      { bg: 'bg-pink-50', icon: 'text-pink-600' },
+      { bg: 'bg-purple-50', icon: 'text-purple-600' },
+      { bg: 'bg-green-50', icon: 'text-green-600' },
+      { bg: 'bg-orange-50', icon: 'text-orange-600' },
+    ];
+    return colors[index % colors.length];
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -82,21 +99,25 @@ const LeaderboardPage: React.FC = () => {
         <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Classificação Geral</h1>
         <p className="text-gray-500">Torneio de Baladeira - Acompanhe os resultados em tempo real</p>
       </div>
-      <div className="grid md:grid-cols-2 gap-6 h-[600px]">
-        <CategorySection 
-          title="Categoria Livre" 
-          category="Livre" 
-          colorClass="bg-blue-50" 
-          iconColor="text-blue-600"
-          competitors={competitors}
-        />
-        <CategorySection 
-          title="Categoria Feminina" 
-          category="Feminina" 
-          colorClass="bg-pink-50" 
-          iconColor="text-pink-600"
-          competitors={competitors}
-        />
+      <div className={`grid gap-6 ${categories.length === 1 ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-2'}`}>
+        {categories.map((cat, idx) => {
+          const colors = getColors(idx);
+          return (
+            <CategorySection 
+              key={cat.id}
+              title={`Categoria ${cat.name}`}
+              category={cat.name}
+              colorClass={colors.bg}
+              iconColor={colors.icon}
+              competitors={competitors}
+            />
+          );
+        })}
+        {categories.length === 0 && (
+          <div className="col-span-full text-center py-12 bg-white rounded-2xl border border-gray-200">
+            <p className="text-gray-500">Nenhuma categoria cadastrada. Acesse o painel Gerenciar.</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -173,14 +194,29 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
 // 3. Registration Page
 const RegistrationPage: React.FC = () => {
   const [name, setName] = useState('');
-  const [category, setCategory] = useState<Category>('Livre');
+  const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [category, setCategory] = useState<string>('');
   const [lastRegistered, setLastRegistered] = useState<Competitor | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    const loadCats = async () => {
+      await TournamentService.initDefaults();
+      const cats = await TournamentService.getCategories();
+      setCategories(cats);
+      if (cats.length > 0) setCategory(cats[0].name);
+    };
+    loadCats();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (!category) {
+      setError("Selecione uma categoria.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -233,38 +269,33 @@ const RegistrationPage: React.FC = () => {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Categoria</label>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setCategory('Livre')}
-                className={`p-4 rounded-xl border-2 transition-all text-center font-medium ${
-                  category === 'Livre' 
-                  ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                  : 'border-gray-200 hover:border-blue-200'
-                }`}
-                disabled={isSubmitting}
-              >
-                Livre
-              </button>
-              <button
-                type="button"
-                onClick={() => setCategory('Feminina')}
-                className={`p-4 rounded-xl border-2 transition-all text-center font-medium ${
-                  category === 'Feminina' 
-                  ? 'border-pink-500 bg-pink-50 text-pink-700' 
-                  : 'border-gray-200 hover:border-pink-200'
-                }`}
-                disabled={isSubmitting}
-              >
-                Feminina
-              </button>
-            </div>
+            {categories.length === 0 ? (
+              <div className="p-4 bg-yellow-50 text-yellow-800 rounded-xl text-sm">Nenhuma categoria cadastrada. Vá em Gerenciar para adicionar.</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {categories.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.name)}
+                    className={`p-4 rounded-xl border-2 transition-all text-center font-medium ${
+                      category === cat.name 
+                      ? 'border-wood-600 bg-wood-50 text-wood-800' 
+                      : 'border-gray-200 hover:border-wood-200'
+                    }`}
+                    disabled={isSubmitting}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <button
             type="submit"
-            disabled={isSubmitting}
-            className={`w-full bg-wood-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-wood-700 transition-colors shadow-lg ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+            disabled={isSubmitting || categories.length === 0}
+            className={`w-full bg-wood-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-wood-700 transition-colors shadow-lg ${isSubmitting || categories.length === 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
             {isSubmitting ? 'Salvando...' : 'Gerar Inscrição'}
           </button>
@@ -414,23 +445,34 @@ const ScoringPage: React.FC = () => {
   );
 };
 
-// 5. Manage Participants Page
+// 5. Manage Participants Page (Includes Categories)
 const ManageParticipantsPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'participants' | 'categories'>('participants');
+
+  // --- Participants Logic ---
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [isSeeding, setIsSeeding] = useState(false);
 
+  // --- Categories Logic ---
+  const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatPrefix, setNewCatPrefix] = useState('');
+
   const refreshList = async () => {
     const data = await TournamentService.getAll();
     setCompetitors(data.sort((a, b) => b.createdAt - a.createdAt));
+    const cats = await TournamentService.getCategories();
+    setCategories(cats);
   };
 
   useEffect(() => {
     refreshList();
   }, []);
 
+  // -- Participant Handlers
   const handleEdit = (comp: Competitor) => {
     setEditingId(comp.id);
     setEditName(comp.name);
@@ -451,7 +493,7 @@ const ManageParticipantsPage: React.FC = () => {
   };
 
   const handleSeed = async () => {
-    if (window.confirm('Isso irá gerar 60 competidores aleatórios (30 Livre, 30 Feminino) com pontuações. Deseja continuar?')) {
+    if (window.confirm('Isso irá gerar competidores aleatórios nas categorias existentes. Deseja continuar?')) {
       setIsSeeding(true);
       try {
         await TournamentService.seedDatabase();
@@ -464,7 +506,32 @@ const ManageParticipantsPage: React.FC = () => {
         setIsSeeding(false);
       }
     }
-  }
+  };
+
+  // -- Category Handlers
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim() || !newCatPrefix.trim()) return;
+    
+    // Check duplication
+    const existing = categories.find(c => c.name.toLowerCase() === newCatName.toLowerCase() || c.prefix === newCatPrefix.toUpperCase());
+    if (existing) {
+      alert("Já existe uma categoria com esse nome ou prefixo.");
+      return;
+    }
+
+    await TournamentService.addCategory(newCatName.trim(), newCatPrefix.trim());
+    setNewCatName('');
+    setNewCatPrefix('');
+    refreshList();
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (window.confirm('Tem certeza? Isso não exclui os competidores, mas pode causar confusão na organização.')) {
+      await TournamentService.deleteCategory(id);
+      refreshList();
+    }
+  };
 
   const filteredCompetitors = competitors.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -473,127 +540,238 @@ const ManageParticipantsPage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-8">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <Users className="w-8 h-8 text-wood-600" />
-          Gerenciar Participantes
+          <Settings className="w-8 h-8 text-wood-600" />
+          Administração
         </h1>
         
-        <button 
-          onClick={handleSeed}
-          disabled={isSeeding}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors shadow-sm text-sm font-medium disabled:opacity-50"
-        >
-          {isSeeding ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-          Gerar Dados de Teste (Seed)
-        </button>
+        <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
+          <button
+            onClick={() => setActiveTab('participants')}
+            className={`px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'participants' ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            <Users className="w-4 h-4" />
+            Participantes
+          </button>
+          <button
+            onClick={() => setActiveTab('categories')}
+            className={`px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'categories' ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            <Tag className="w-4 h-4" />
+            Categorias
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100">
-           <div className="relative max-w-md">
-            <Search className="absolute left-4 top-3.5 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none"
-              placeholder="Pesquisar..."
-            />
+      {activeTab === 'participants' && (
+        <div className="space-y-4 animate-fade-in">
+           <div className="flex justify-end">
+            <button 
+              onClick={handleSeed}
+              disabled={isSeeding}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors shadow-sm text-sm font-medium disabled:opacity-50"
+            >
+              {isSeeding ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+              Gerar Dados de Teste
+            </button>
+           </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-6 border-b border-gray-100">
+              <div className="relative max-w-md">
+                <Search className="absolute left-4 top-3.5 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none"
+                  placeholder="Pesquisar participantes..."
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 text-gray-600 font-semibold text-sm">
+                  <tr>
+                    <th className="px-6 py-4">Inscrição</th>
+                    <th className="px-6 py-4">Nome</th>
+                    <th className="px-6 py-4">Categoria</th>
+                    <th className="px-6 py-4">Pontos</th>
+                    <th className="px-6 py-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredCompetitors.map((comp) => (
+                    <tr key={comp.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 font-mono text-sm text-gray-500">{comp.id}</td>
+                      <td className="px-6 py-4">
+                        {editingId === comp.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="px-3 py-1 border rounded-lg focus:ring-2 focus:ring-wood-500 outline-none w-full"
+                            />
+                          </div>
+                        ) : (
+                          <span className="font-medium text-gray-900">{comp.name}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-700">
+                          {comp.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600">
+                        {comp.score !== null ? comp.score : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {editingId === comp.id ? (
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleSave(comp.id)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg">
+                              <Save className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setEditingId(null)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleEdit(comp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDelete(comp.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredCompetitors.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                        Nenhum participante encontrado.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
+      )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 text-gray-600 font-semibold text-sm">
-              <tr>
-                <th className="px-6 py-4">Inscrição</th>
-                <th className="px-6 py-4">Nome</th>
-                <th className="px-6 py-4">Categoria</th>
-                <th className="px-6 py-4">Pontos</th>
-                <th className="px-6 py-4 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredCompetitors.map((comp) => (
-                <tr key={comp.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-sm text-gray-500">{comp.id}</td>
-                  <td className="px-6 py-4">
-                    {editingId === comp.id ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="px-3 py-1 border rounded-lg focus:ring-2 focus:ring-wood-500 outline-none w-full"
-                        />
-                      </div>
-                    ) : (
-                      <span className="font-medium text-gray-900">{comp.name}</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${comp.category === 'Livre' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                      {comp.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-gray-600">
-                    {comp.score !== null ? comp.score : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {editingId === comp.id ? (
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => handleSave(comp.id)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg">
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setEditingId(null)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => handleEdit(comp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDelete(comp.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {filteredCompetitors.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                    Nenhum participante encontrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {activeTab === 'categories' && (
+        <div className="animate-fade-in grid gap-8 md:grid-cols-3">
+          <div className="md:col-span-1">
+             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+               <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                 <Plus className="w-5 h-5 text-wood-600" />
+                 Nova Categoria
+               </h3>
+               <form onSubmit={handleAddCategory} className="space-y-4">
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                   <input
+                    type="text"
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-wood-500 outline-none"
+                    placeholder="Ex: Infantil"
+                    required
+                   />
+                 </div>
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Prefixo do ID</label>
+                   <input
+                    type="text"
+                    maxLength={1}
+                    value={newCatPrefix}
+                    onChange={(e) => setNewCatPrefix(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-wood-500 outline-none uppercase"
+                    placeholder="Ex: I"
+                    required
+                   />
+                   <p className="text-xs text-gray-500 mt-1">Uma letra única para gerar IDs (Ex: I123).</p>
+                 </div>
+                 <button 
+                  type="submit"
+                  className="w-full bg-wood-600 text-white py-2 rounded-lg font-bold hover:bg-wood-700 transition-colors"
+                 >
+                   Adicionar
+                 </button>
+               </form>
+             </div>
+          </div>
+
+          <div className="md:col-span-2">
+             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 text-gray-600 font-semibold text-sm">
+                    <tr>
+                      <th className="px-6 py-4">Categoria</th>
+                      <th className="px-6 py-4">Prefixo</th>
+                      <th className="px-6 py-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {categories.map(cat => (
+                      <tr key={cat.id}>
+                        <td className="px-6 py-4 font-medium">{cat.name}</td>
+                        <td className="px-6 py-4 font-mono text-gray-500">{cat.prefix}***</td>
+                        <td className="px-6 py-4 text-right">
+                          <button 
+                            onClick={() => cat.id && handleDeleteCategory(cat.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Excluir Categoria"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+             </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
 
 // 6. Bracket Page
 const BracketPage: React.FC = () => {
-  const [category, setCategory] = useState<Category>('Livre');
+  const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [qualifiers, setQualifiers] = useState<Competitor[]>([]);
 
   useEffect(() => {
+    const loadCats = async () => {
+      await TournamentService.initDefaults();
+      const cats = await TournamentService.getCategories();
+      setCategories(cats);
+      if (cats.length > 0) setSelectedCategory(cats[0].name);
+    };
+    loadCats();
+  }, []);
+
+  useEffect(() => {
     const load = async () => {
+      if (!selectedCategory) return;
       const data = await TournamentService.getAll();
-      const filtered = data.filter(c => c.category === category);
+      const filtered = data.filter(c => c.category === selectedCategory);
       // Sort desc by score
       const sorted = filtered.sort((a, b) => (b.score || 0) - (a.score || 0));
       // Take top 16
       setQualifiers(sorted.slice(0, 16));
     };
     load();
-  }, [category]);
+  }, [selectedCategory]);
 
   // Standard seeding logic for 16 players
   // 1vs16, 8vs9, 4vs13, 5vs12, 2vs15, 7vs10, 3vs14, 6vs11
@@ -634,19 +812,16 @@ const BracketPage: React.FC = () => {
           Chaveamento (Mata-mata)
         </h1>
         
-        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200">
-           <button
-             onClick={() => setCategory('Livre')}
-             className={`px-4 py-2 rounded-lg font-medium transition-colors ${category === 'Livre' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
-           >
-             Livre
-           </button>
-           <button
-             onClick={() => setCategory('Feminina')}
-             className={`px-4 py-2 rounded-lg font-medium transition-colors ${category === 'Feminina' ? 'bg-pink-100 text-pink-700' : 'text-gray-500 hover:bg-gray-50'}`}
-           >
-             Feminina
-           </button>
+        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto max-w-full">
+           {categories.map(cat => (
+             <button
+               key={cat.id}
+               onClick={() => setSelectedCategory(cat.name)}
+               className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${selectedCategory === cat.name ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
+             >
+               {cat.name}
+             </button>
+           ))}
         </div>
       </div>
 

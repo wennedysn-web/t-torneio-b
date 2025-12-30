@@ -1,9 +1,16 @@
-export type Category = 'Livre' | 'Feminina';
+export type Category = string; // Mudado de Union Type fixo para string para suportar BD
+
+export interface CategoryDef {
+  id?: number;
+  name: string;
+  prefix: string; // Ex: 'L' para Livre, 'F' para Feminina
+  color?: string; // Opcional: para UI
+}
 
 export interface Competitor {
   id: string; // The generated ID (e.g., L123)
   name: string;
-  category: Category;
+  category: string;
   score: number | null; // null represents not yet played
   targetsHit: number[]; // Array of points from hit targets
   createdAt: number;
