@@ -1,10 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
 import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService } from './services/storage';
 import { Competitor, Category } from './types';
 import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw } from 'lucide-react';
+
+// --- COMPONENTS ---
+
+const CategorySection = ({ title, category, colorClass, iconColor, competitors }: { title: string, category: Category, colorClass: string, iconColor: string, competitors: Competitor[] }) => {
+  const list = competitors.filter(c => c.category === category);
+  
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      <div className={`px-6 py-4 border-b border-gray-100 ${colorClass} bg-opacity-10 flex items-center gap-3`}>
+        <Trophy className={`w-6 h-6 ${iconColor}`} />
+        <h2 className={`text-xl font-bold ${iconColor}`}>{title}</h2>
+      </div>
+      <div className="overflow-y-auto flex-1 p-4">
+        {list.length === 0 ? (
+          <div className="text-center py-10 text-gray-400">
+            Nenhum competidor registrado.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {list.map((comp, index) => (
+              <div key={comp.id} className="flex items-center bg-gray-50 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
+                <div className={`
+                  w-8 h-8 flex items-center justify-center rounded-full font-bold mr-4 shrink-0
+                  ${index === 0 ? 'bg-yellow-100 text-yellow-700' : 
+                    index === 1 ? 'bg-gray-200 text-gray-700' : 
+                    index === 2 ? 'bg-orange-100 text-orange-800' : 'bg-white text-gray-500 border border-gray-200'}
+                `}>
+                  {index + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-gray-800 truncate">{comp.name}</div>
+                  <div className="text-xs text-gray-500 font-mono">ID: {comp.id}</div>
+                </div>
+                <div className="text-right pl-4">
+                  {comp.score === null ? (
+                    <span className="text-xs px-2 py-1 bg-gray-200 text-gray-500 rounded-md">Pendente</span>
+                  ) : (
+                    <span className="text-xl font-bold text-wood-700">{comp.score}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // --- PAGES ---
 
@@ -29,52 +76,6 @@ const LeaderboardPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const CategorySection = ({ title, category, colorClass, iconColor }: { title: string, category: Category, colorClass: string, iconColor: string }) => {
-    const list = competitors.filter(c => c.category === category);
-    
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-        <div className={`px-6 py-4 border-b border-gray-100 ${colorClass} bg-opacity-10 flex items-center gap-3`}>
-          <Trophy className={`w-6 h-6 ${iconColor}`} />
-          <h2 className={`text-xl font-bold ${iconColor}`}>{title}</h2>
-        </div>
-        <div className="overflow-y-auto flex-1 p-4">
-          {list.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">
-              Nenhum competidor registrado.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {list.map((comp, index) => (
-                <div key={comp.id} className="flex items-center bg-gray-50 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
-                  <div className={`
-                    w-8 h-8 flex items-center justify-center rounded-full font-bold mr-4 shrink-0
-                    ${index === 0 ? 'bg-yellow-100 text-yellow-700' : 
-                      index === 1 ? 'bg-gray-200 text-gray-700' : 
-                      index === 2 ? 'bg-orange-100 text-orange-800' : 'bg-white text-gray-500 border border-gray-200'}
-                  `}>
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-gray-800 truncate">{comp.name}</div>
-                    <div className="text-xs text-gray-500 font-mono">ID: {comp.id}</div>
-                  </div>
-                  <div className="text-right pl-4">
-                    {comp.score === null ? (
-                      <span className="text-xs px-2 py-1 bg-gray-200 text-gray-500 rounded-md">Pendente</span>
-                    ) : (
-                      <span className="text-xl font-bold text-wood-700">{comp.score}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
       <div className="text-center mb-8">
@@ -86,13 +87,15 @@ const LeaderboardPage: React.FC = () => {
           title="Categoria Livre" 
           category="Livre" 
           colorClass="bg-blue-50" 
-          iconColor="text-blue-600" 
+          iconColor="text-blue-600"
+          competitors={competitors}
         />
         <CategorySection 
           title="Categoria Feminina" 
           category="Feminina" 
           colorClass="bg-pink-50" 
-          iconColor="text-pink-600" 
+          iconColor="text-pink-600"
+          competitors={competitors}
         />
       </div>
     </div>
@@ -760,14 +763,4 @@ const App: React.FC = () => {
   );
 };
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
-}
-
-const root = createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+export default App;
