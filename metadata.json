@@ -1,0 +1,5 @@
+{
+  "name": "Torneio de Baladeira Pro",
+  "description": "Sistema de gestão para torneios de baladeira com classificação em tempo real, gestão de inscrições e sistema de pontuação detalhado.",
+  "requestFramePermissions": []
+}
