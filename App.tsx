@@ -16,6 +16,7 @@ const getHighCard = (c: Competitor): number => {
 const isPerfectTie = (a: Competitor, b: Competitor): boolean => {
   if (a.score !== b.score) return false;
   
+  // Ordena os alvos para comparar arrays (ex: [10, 24] deve ser igual a [10, 24])
   const targetsA = [...(a.targetsHit || [])].sort((x, y) => x - y);
   const targetsB = [...(b.targetsHit || [])].sort((x, y) => x - y);
 
@@ -50,26 +51,6 @@ const CategorySection = ({ title, category, colorClass, iconColor, competitors }
   // Sort ensures leaderboard reflects the tie-break rules
   const sortedList = sortCompetitors(list);
   
-  // Lógica para calcular ranking considerando empates
-  // Se index 1 empatar com index 0, ambos são Rank 1. O index 2 será Rank 3.
-  const getRank = (index: number, currentComp: Competitor) => {
-    if (index === 0) return 1;
-    const prevComp = sortedList[index - 1];
-    
-    // Se for empate técnico perfeito, mantém o rank anterior
-    if (isPerfectTie(currentComp, prevComp)) {
-      // Recursivamente busca o rank do anterior (caso haja empate triplo)
-      // Para simplificar na renderização, vamos calcular baseado no primeiro que não empatou
-      let lookBack = index - 1;
-      while (lookBack >= 0 && isPerfectTie(sortedList[lookBack], currentComp)) {
-        lookBack--;
-      }
-      return lookBack + 2; // +1 pelo index zero, +1 pelo próximo
-    }
-    
-    return index + 1;
-  };
-
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-h-[400px]">
       <div className={`px-6 py-4 border-b border-gray-100 ${colorClass} bg-opacity-10 flex items-center gap-3`}>
@@ -87,11 +68,10 @@ const CategorySection = ({ title, category, colorClass, iconColor, competitors }
               const prevComp = index > 0 ? sortedList[index - 1] : null;
               const isTied = prevComp && isPerfectTie(comp, prevComp);
               
-              // Define a posição visual. Se empatado, usa a mesma do anterior.
-              // Nota: Isso é apenas visual. O index continua existindo.
+              // Define a posição visual. Se empatado com o anterior, mantém a mesma posição visual.
               let displayRank = index + 1;
               if (isTied) {
-                 // Encontra o rank original do grupo de empate
+                 // Busca para trás para achar o primeiro do grupo de empate
                  let i = index;
                  while(i > 0 && isPerfectTie(sortedList[i], sortedList[i-1])) {
                    i--;
@@ -113,10 +93,10 @@ const CategorySection = ({ title, category, colorClass, iconColor, competitors }
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                         <div className="font-semibold text-gray-800 truncate">{comp.name}</div>
                         {isTied && (
-                            <span className="text-[10px] font-bold uppercase tracking-wider bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
                                 <Scale className="w-3 h-3" />
                                 Empate Técnico
                             </span>
@@ -243,7 +223,6 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
         }
       }
 
-      // Chama o serviço (que agora trata erros offline internamente)
       const { user: authUser, error: authError } = await TournamentService.auth.login(finalEmail, finalPass);
 
       if (authError) {
@@ -650,11 +629,20 @@ const ManageParticipantsPage: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este participante? Esta ação não pode ser desfeita.')) {
+      
+      const originalList = [...competitors];
+      
       // 1. Atualização Otimista: Remove da UI imediatamente e não recarrega para evitar race conditions
       setCompetitors(current => current.filter(c => c.id !== id));
       
       // 2. Chama o serviço em segundo plano
-      await TournamentService.deleteCompetitor(id);
+      const success = await TournamentService.deleteCompetitor(id);
+
+      // 3. Se falhar, reverte a alteração
+      if (!success) {
+          alert("Erro ao excluir do banco de dados. Verifique sua conexão ou permissões.");
+          setCompetitors(originalList);
+      }
     }
   };
 
@@ -683,6 +671,8 @@ const ManageParticipantsPage: React.FC = () => {
               alert("Todos os dados foram excluídos.");
               setIsResetModalOpen(false);
               setResetPassword('');
+              // Aqui forçamos o refresh pois deleteAll é uma operação massiva e segura
+              setCompetitors([]);
               refreshList();
           } else {
               alert("Erro ao tentar excluir.");
@@ -740,7 +730,7 @@ const ManageParticipantsPage: React.FC = () => {
               ) : (
                 <>
                   <WifiOff className="w-4 h-4" />
-                  Modo Offline (Dados Locais)
+                  Modo Admin Local (Offline)
                 </>
               )}
             </div>

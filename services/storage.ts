@@ -28,8 +28,17 @@ const LAST_NAMES = [
   'Rocha', 'Dias', 'Nascimento', 'Andrade', 'Moreira', 'Nunes', 'Marques', 'Machado', 'Mendes', 'Freitas'
 ];
 
-// Helper para simular delay e evitar UI piscando muito rápido no modo offline
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// Helper para verificar se estamos operando no modo Admin Local (Sem backend)
+const isOfflineMode = () => {
+  try {
+    const userStr = localStorage.getItem(LS_KEYS.AUTH_USER);
+    if (!userStr) return false;
+    const user = JSON.parse(userStr);
+    return user.id === 'offline-admin';
+  } catch (e) {
+    return false;
+  }
+};
 
 export const TournamentService = {
   // --- Auth Wrapper ---
@@ -90,12 +99,14 @@ export const TournamentService = {
 
   // --- Health Check ---
   checkHealth: async (): Promise<{ ok: boolean; message?: string }> => {
+    if (isOfflineMode()) return { ok: false, message: 'Modo Admin Local (Dados apenas no navegador)' };
+
     try {
       const { error } = await supabase.from('categories').select('count', { count: 'exact', head: true }).limit(1);
       if (error) throw error;
       return { ok: true };
     } catch (err: any) {
-      return { ok: false, message: 'Modo Offline Ativado (Sem conexão com banco)' };
+      return { ok: false, message: 'Sem conexão com banco (Offline)' };
     }
   },
 
@@ -106,13 +117,14 @@ export const TournamentService = {
     let hasLocal = localCats && JSON.parse(localCats).length > 0;
 
     if (!hasLocal) {
-        // Se não tem nada local, tenta criar padrão na memória local
         const defaults = [
             { id: 1, name: 'Livre', prefix: 'L' },
             { id: 2, name: 'Feminina', prefix: 'F' }
         ];
         localStorage.setItem(LS_KEYS.CATEGORIES, JSON.stringify(defaults));
     }
+
+    if (isOfflineMode()) return;
 
     try {
       const { count, error } = await supabase.from('categories').select('*', { count: 'exact', head: true });
@@ -129,11 +141,15 @@ export const TournamentService = {
 
   // --- Categories ---
   getCategories: async (): Promise<CategoryDef[]> => {
+    if (isOfflineMode()) {
+        const cached = localStorage.getItem(LS_KEYS.CATEGORIES);
+        return cached ? JSON.parse(cached) : [];
+    }
+
     try {
       const { data, error } = await supabase.from('categories').select('*').order('id', { ascending: true });
       if (error) throw error;
       
-      // Atualiza cache
       localStorage.setItem(LS_KEYS.CATEGORIES, JSON.stringify(data));
       return data as CategoryDef[];
     } catch (e) {
@@ -146,15 +162,15 @@ export const TournamentService = {
   addCategory: async (name: string, prefix: string): Promise<void> => {
     // 1. Atualiza Local
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.CATEGORIES) || '[]');
-    const newCat = { id: Date.now(), name, prefix: prefix.toUpperCase() }; // ID temporário
+    const newCat = { id: Date.now(), name, prefix: prefix.toUpperCase() }; 
     localStorage.setItem(LS_KEYS.CATEGORIES, JSON.stringify([...cached, newCat]));
+
+    if (isOfflineMode()) return;
 
     // 2. Tenta Remoto
     try {
       await supabase.from('categories').insert({ name, prefix: prefix.toUpperCase() });
-    } catch (e) {
-      console.error('Erro ao salvar categoria remoto:', e);
-    }
+    } catch (e) { console.error('Erro remoto add cat', e); }
   },
 
   deleteCategory: async (id: number): Promise<void> => {
@@ -162,6 +178,8 @@ export const TournamentService = {
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.CATEGORIES) || '[]');
     const filtered = cached.filter((c: any) => c.id !== id);
     localStorage.setItem(LS_KEYS.CATEGORIES, JSON.stringify(filtered));
+
+    if (isOfflineMode()) return;
 
     // 2. Tenta Remoto
     try {
@@ -171,6 +189,13 @@ export const TournamentService = {
 
   // --- Competitors ---
   getAll: async (): Promise<Competitor[]> => {
+    // SE FOR MODO OFFLINE ADMIN, NÃO TENTE BUSCAR DO SUPABASE
+    // Isso evita que o getAll sobrescreva a exclusão local com dados antigos do servidor
+    if (isOfflineMode()) {
+        const cached = localStorage.getItem(LS_KEYS.COMPETITORS);
+        return cached ? JSON.parse(cached) : [];
+    }
+
     try {
       const { data, error } = await supabase.from('competitors').select('*');
       if (error) throw error;
@@ -196,7 +221,7 @@ export const TournamentService = {
 
   register: async (name: string, categoryName: string): Promise<{ success: boolean; message: string; competitor?: Competitor }> => {
     try {
-      // Tenta obter prefixo (online ou offline)
+      // Tenta obter prefixo
       const cats = await TournamentService.getCategories();
       const catDef = cats.find(c => c.name === categoryName);
       const prefix = catDef ? catDef.prefix : 'X';
@@ -214,16 +239,17 @@ export const TournamentService = {
         createdAt: Date.now()
       };
 
-      // 1. Salvar Localmente Primeiro (Optimistic UI)
+      // 1. Salvar Localmente
       const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
-      
-      // Verificar limite localmente
       const existingCount = cached.filter((c: Competitor) => c.name.toLowerCase() === name.trim().toLowerCase()).length;
       if (existingCount >= 3) {
-        return { success: false, message: 'Limite de 3 inscrições atingido (Verificação Offline).' };
+        return { success: false, message: 'Limite de 3 inscrições atingido (Verificação Local).' };
       }
-
       localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify([...cached, newCompetitor]));
+
+      if (isOfflineMode()) {
+          return { success: true, message: 'Inscrição realizada (Local)!', competitor: newCompetitor };
+      }
 
       // 2. Tentar Salvar Remotamente
       try {
@@ -260,6 +286,8 @@ export const TournamentService = {
     });
     localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(updated));
 
+    if (isOfflineMode()) return true;
+
     // 2. Atualiza Remoto
     try {
       await supabase
@@ -268,8 +296,7 @@ export const TournamentService = {
         .eq('id', id);
       return true;
     } catch (e) {
-      console.warn('Pontuação salva apenas localmente');
-      return true; // Retorna true pois foi salvo localmente
+      return true;
     }
   },
 
@@ -279,6 +306,8 @@ export const TournamentService = {
     const updated = cached.map((c: Competitor) => c.id === id ? { ...c, name: newName } : c);
     localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(updated));
 
+    if (isOfflineMode()) return true;
+
     // 2. Remoto
     try {
       await supabase.from('competitors').update({ name: newName.trim() }).eq('id', id);
@@ -287,19 +316,26 @@ export const TournamentService = {
   },
 
   deleteCompetitor: async (id: string): Promise<boolean> => {
+    // 1. Local (Sempre tenta atualizar o cache local para consistência)
     try {
-      // 1. Local (Crucial para atualização instantânea da UI)
       const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
       const filtered = cached.filter((c: Competitor) => c.id !== id);
       localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(filtered));
+    } catch(e) { console.error("Erro cache local", e); }
 
-      // 2. Remoto
-      await supabase.from('competitors').delete().eq('id', id);
+    if (isOfflineMode()) return true;
+
+    // 2. Remoto
+    try {
+      const { error } = await supabase.from('competitors').delete().eq('id', id);
+      if (error) {
+        console.error('Erro ao excluir do Supabase:', error);
+        return false;
+      }
       return true;
     } catch (e) { 
-      console.error('Erro ao excluir:', e);
-      // Retorna true pois excluiu do local, então para o usuário "funcionou" no modo offline
-      return true; 
+      console.error('Exceção ao excluir:', e);
+      return false; 
     }
   },
 
@@ -308,18 +344,19 @@ export const TournamentService = {
           // 1. Local
           localStorage.setItem(LS_KEYS.COMPETITORS, '[]');
 
+          if (isOfflineMode()) return true;
+
           // 2. Remoto
-          const { error } = await supabase.from('competitors').delete().neq('id', '0'); // Delete all where id != 0 (all strings)
+          const { error } = await supabase.from('competitors').delete().neq('id', '0');
           if (error) throw error;
           return true;
       } catch (e) {
           console.error('Erro ao limpar tudo:', e);
-          return true; // Assume sucesso local
+          return true;
       }
   },
 
   seedDatabase: async (): Promise<void> => {
-    // Geração local apenas para simplificar no modo offline/híbrido
     const cats = await TournamentService.getCategories();
     if (cats.length === 0) return;
 
@@ -349,11 +386,11 @@ export const TournamentService = {
         }
     }
 
-    // Salva Local
     const current = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
     localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify([...current, ...newComps]));
     
-    // Tenta salvar remoto (fire and forget)
+    if (isOfflineMode()) return;
+
     try {
         const payload = newComps.map(c => ({
             id: c.id,
