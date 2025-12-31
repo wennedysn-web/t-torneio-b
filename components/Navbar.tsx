@@ -1,14 +1,16 @@
 import React from 'react';
-import { Trophy, Target, UserPlus, LogOut, Lock, Users, GitMerge } from 'lucide-react';
+import { Trophy, Target, UserPlus, LogOut, Lock, Users, GitMerge, Calendar } from 'lucide-react';
 
 interface NavbarProps {
   currentView: string;
   onChangeView: (view: string) => void;
   isAdmin: boolean;
   onLogout: () => void;
+  year: number | null;
+  onChangeYear: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentView, onChangeView, isAdmin, onLogout }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentView, onChangeView, isAdmin, onLogout, year, onChangeYear }) => {
   
   const navItemClass = (viewName: string) => `
     flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 font-medium text-sm sm:text-base whitespace-nowrap
@@ -29,6 +31,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onChangeView, isAdm
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar mask-gradient">
+            
+            {/* Botão de Ano (Funciona como uma aba especial) */}
+            {year && (
+              <button 
+                onClick={onChangeYear}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 font-bold text-sm sm:text-base whitespace-nowrap bg-wood-50 text-wood-700 border border-wood-200 hover:bg-wood-100 mr-2"
+                title="Alterar Ano"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>{year}</span>
+              </button>
+            )}
+
             <button onClick={() => onChangeView('leaderboard')} className={navItemClass('leaderboard')}>
               <Trophy className="w-4 h-4" />
               <span className="hidden sm:inline">Ranking</span>

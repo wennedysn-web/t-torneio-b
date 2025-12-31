@@ -308,6 +308,13 @@ export const TournamentService = {
     }
   },
 
+  // Adiciona 1 ponto à lista de alvos atingidos e recalcula
+  addTiebreaker: async (id: string, currentTargets: number[]): Promise<boolean> => {
+    // Adiciona o valor '1' que representa o desempate
+    const newTargets = [...currentTargets, 1];
+    return await TournamentService.updateScore(id, newTargets);
+  },
+
   updateName: async (id: string, newName: string): Promise<boolean> => {
     // 1. Local
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');

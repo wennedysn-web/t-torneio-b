@@ -3,7 +3,7 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -474,6 +474,7 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [isTiebreakerModalOpen, setIsTiebreakerModalOpen] = useState(false);
 
   // Reload competitors when searching or after update
   const refreshList = async () => {
@@ -481,6 +482,12 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
       const data = await TournamentService.getAll();
       // Filter for Selected YEAR passed by prop
       setCompetitors(data.filter(c => c.year === year));
+      
+      // Update selected competitor if it exists to reflect changes (like extra points)
+      if (selectedCompetitor) {
+          const updated = data.find(c => c.id === selectedCompetitor.id);
+          if (updated) setSelectedCompetitor(updated);
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -505,12 +512,25 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
     const success = await TournamentService.updateScore(selectedCompetitor.id, targets);
     if (success) {
       alert('Pontuação salva com sucesso!');
-      setSelectedCompetitor(null);
+      // setSelectedCompetitor(null); // Optional: Keep selected to see result
       setSearchTerm('');
       refreshList();
     } else {
       alert('Erro ao salvar pontuação.');
     }
+  };
+
+  const handleConfirmTiebreaker = async () => {
+      if (!selectedCompetitor) return;
+      
+      const success = await TournamentService.addTiebreaker(selectedCompetitor.id, selectedCompetitor.targetsHit || []);
+      if (success) {
+          setIsTiebreakerModalOpen(false);
+          await refreshList(); // Update UI
+          alert("Ponto de desempate (+1) adicionado com sucesso!");
+      } else {
+          alert("Erro ao adicionar ponto de desempate.");
+      }
   };
 
   return (
@@ -568,7 +588,7 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
 
       {/* Scoring Section */}
       {selectedCompetitor && (
-        <div className="animate-fade-in">
+        <div className="animate-fade-in relative">
           <div className="flex items-center justify-between mb-6">
             <button 
               onClick={() => setSelectedCompetitor(null)}
@@ -586,6 +606,47 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
             onScoreConfirm={handleSaveScore}
             initialTargets={selectedCompetitor.targetsHit} 
           />
+
+          {/* Botão de Desempate */}
+          <div className="mt-8 flex justify-center border-t border-gray-200 pt-8">
+              <button 
+                onClick={() => setIsTiebreakerModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors font-semibold"
+              >
+                  <Gavel className="w-5 h-5" />
+                  Desempate +1
+              </button>
+          </div>
+
+          {/* Modal de Confirmação de Desempate */}
+          {isTiebreakerModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border-2 border-indigo-100">
+                      <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Gavel className="w-8 h-8 text-indigo-600" />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Confirmar Desempate?</h3>
+                      <p className="text-gray-500 text-center text-sm mb-6">
+                          Isso adicionará <strong className="text-indigo-700">+1 ponto</strong> ao placar total de <strong>{selectedCompetitor.name}</strong> para fins de reclassificação.
+                      </p>
+                      
+                      <div className="flex gap-3">
+                          <button 
+                              onClick={() => setIsTiebreakerModalOpen(false)}
+                              className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
+                          >
+                              Cancelar
+                          </button>
+                          <button 
+                              onClick={handleConfirmTiebreaker}
+                              className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20"
+                          >
+                              Confirmar (+1)
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          )}
         </div>
       )}
     </div>
@@ -1309,12 +1370,49 @@ const WelcomeYearModal: React.FC<{ onSelect: (year: number) => void }> = ({ onSe
   );
 };
 
+// --- CONFIRM CHANGE YEAR MODAL ---
+
+const ChangeYearConfirmModal: React.FC<{ onConfirm: () => void, onCancel: () => void }> = ({ onConfirm, onCancel }) => {
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+       <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-200">
+          <div className="flex items-center gap-4 mb-4">
+             <div className="bg-orange-100 p-3 rounded-full">
+                <RotateCcw className="w-6 h-6 text-orange-600" />
+             </div>
+             <h3 className="text-lg font-bold text-gray-900">Alterar Ano?</h3>
+          </div>
+          
+          <p className="text-gray-600 text-sm mb-6">
+            Você está prestes a sair da visualização atual. Isso fará com que o site recarregue os dados do novo ano selecionado.
+          </p>
+          
+          <div className="flex gap-3">
+             <button 
+                onClick={onCancel}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors"
+             >
+                Cancelar
+             </button>
+             <button 
+                onClick={onConfirm}
+                className="flex-1 py-2.5 rounded-xl bg-wood-600 text-white font-bold hover:bg-wood-700 transition-colors shadow-lg shadow-wood-600/20"
+             >
+                Sim, Alterar
+             </button>
+          </div>
+       </div>
+    </div>
+  );
+};
+
 // --- APP ROOT ---
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState('leaderboard');
   const [isAdmin, setIsAdmin] = useState(false);
   const [globalYear, setGlobalYear] = useState<number | null>(null);
+  const [isYearConfirmOpen, setIsYearConfirmOpen] = useState(false);
 
   useEffect(() => {
     // Check initial session (com try/catch implicito do getUser customizado)
@@ -1339,6 +1437,16 @@ const App: React.FC = () => {
     await TournamentService.auth.logout();
     setIsAdmin(false);
     setCurrentView('leaderboard');
+  };
+
+  // Logic to change year
+  const handleChangeYearRequest = () => {
+     setIsYearConfirmOpen(true);
+  };
+
+  const handleConfirmChangeYear = () => {
+     setGlobalYear(null); // Resets global year, triggering WelcomeYearModal
+     setIsYearConfirmOpen(false);
   };
 
   // Protected Route Logic
@@ -1369,11 +1477,21 @@ const App: React.FC = () => {
       {/* Show Modal if no year selected */}
       {!globalYear && <WelcomeYearModal onSelect={setGlobalYear} />}
 
+      {/* Confirmation Modal */}
+      {isYearConfirmOpen && (
+         <ChangeYearConfirmModal 
+            onConfirm={handleConfirmChangeYear} 
+            onCancel={() => setIsYearConfirmOpen(false)} 
+         />
+      )}
+
       <Navbar 
         currentView={currentView} 
         onChangeView={setCurrentView} 
         isAdmin={isAdmin} 
         onLogout={handleLogout}
+        year={globalYear}
+        onChangeYear={handleChangeYearRequest}
       />
       <main className="mt-4">
         {renderView()}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TARGET_CONFIGS, MAX_SHOTS } from '../types';
-import { Circle, CheckCircle2, Target } from 'lucide-react';
+import { Circle, CheckCircle2, Target, PlusCircle } from 'lucide-react';
 
 interface TargetBoardProps {
   onScoreConfirm: (targets: number[]) => void;
@@ -11,13 +11,18 @@ export const TargetBoard: React.FC<TargetBoardProps> = ({ onScoreConfirm, initia
   // We flatten the config to individual selectable items
   // e.g., if 10 has count 2, we have two items with value 10
   const [availableTargets, setAvailableTargets] = useState<{ id: string; value: number; isSelected: boolean }[]>([]);
+  const [extraPoints, setExtraPoints] = useState<number[]>([]);
 
   useEffect(() => {
     let items: { id: string; value: number; isSelected: boolean }[] = [];
     let idCounter = 0;
+    
+    // Lista de valores válidos de configuração para identificar o que é "extra"
+    const standardValues = new Set<number>();
 
     // Constrói a lista de todos os alvos disponíveis
     TARGET_CONFIGS.forEach(conf => {
+      standardValues.add(conf.points);
       for (let i = 0; i < conf.count; i++) {
         items.push({
           id: `target-${idCounter++}`,
@@ -26,6 +31,8 @@ export const TargetBoard: React.FC<TargetBoardProps> = ({ onScoreConfirm, initia
         });
       }
     });
+
+    const extras: number[] = [];
 
     // Se houver pontuação salva, pré-seleciona os alvos correspondentes
     if (initialTargets && initialTargets.length > 0) {
@@ -37,19 +44,25 @@ export const TargetBoard: React.FC<TargetBoardProps> = ({ onScoreConfirm, initia
         const index = targetsToSelect.indexOf(item.value);
         if (index > -1) {
           // Encontrou match: marca como selecionado e remove da lista temporária
-          // para garantir que se houver 2 alvos de 10pts e o usuário acertou apenas 1, apenas 1 seja marcado
           targetsToSelect.splice(index, 1);
           return { ...item, isSelected: true };
         }
         return item;
       });
+
+      // O que sobrou em targetsToSelect são pontos extras (ex: +1 do desempate)
+      // pois não encontraram um "slot" disponível no tabuleiro padrão
+      targetsToSelect.forEach(val => extras.push(val));
     }
     
     setAvailableTargets(items);
+    setExtraPoints(extras);
   }, [initialTargets]);
 
   const selectedCount = availableTargets.filter(t => t.isSelected).length;
-  const currentTotal = availableTargets.filter(t => t.isSelected).reduce((sum, t) => sum + t.value, 0);
+  const standardTotal = availableTargets.filter(t => t.isSelected).reduce((sum, t) => sum + t.value, 0);
+  const extraTotal = extraPoints.reduce((a, b) => a + b, 0);
+  const currentTotal = standardTotal + extraTotal;
 
   const toggleTarget = (id: string) => {
     setAvailableTargets(prev => {
@@ -76,7 +89,10 @@ export const TargetBoard: React.FC<TargetBoardProps> = ({ onScoreConfirm, initia
     const selectedValues = availableTargets
       .filter(t => t.isSelected)
       .map(t => t.value);
-    onScoreConfirm(selectedValues);
+    
+    // Garante que os pontos extras sejam mantidos ao salvar
+    const finalTargets = [...selectedValues, ...extraPoints];
+    onScoreConfirm(finalTargets);
   };
 
   return (
@@ -87,8 +103,18 @@ export const TargetBoard: React.FC<TargetBoardProps> = ({ onScoreConfirm, initia
           <p className="text-sm text-gray-500">Selecione os alvos abatidos (Máx: {MAX_SHOTS})</p>
         </div>
         <div className="text-right">
-          <div className="text-3xl font-bold text-wood-600">{currentTotal} <span className="text-sm font-normal text-gray-400">pts</span></div>
-          <div className={`text-xs font-semibold px-2 py-1 rounded-full inline-block ${selectedCount === MAX_SHOTS ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+          <div className="flex flex-col items-end">
+             <div className="text-3xl font-bold text-wood-600">
+               {currentTotal} <span className="text-sm font-normal text-gray-400">pts</span>
+             </div>
+             {extraTotal > 0 && (
+               <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                 <PlusCircle className="w-3 h-3" />
+                 Inclui Desempate ({extraTotal})
+               </div>
+             )}
+          </div>
+          <div className={`mt-1 text-xs font-semibold px-2 py-1 rounded-full inline-block ${selectedCount === MAX_SHOTS ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
             {selectedCount}/{MAX_SHOTS} Disparos
           </div>
         </div>
