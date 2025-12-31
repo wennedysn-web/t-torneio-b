@@ -76,7 +76,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({ title, category, colo
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-h-[400px]">
       <div className={`px-6 py-4 border-b border-gray-100 ${colorClass} bg-opacity-10 flex items-center gap-3`}>
         <Trophy className={`w-6 h-6 ${iconColor}`} />
-        <h2 className={`text-xl font-bold ${iconColor}`}>{title}</h2>
+        <div className="flex items-baseline gap-2">
+            <h2 className={`text-xl font-bold ${iconColor}`}>{title}</h2>
+            <span className={`text-sm font-medium ${iconColor} opacity-80`}>({list.length})</span>
+        </div>
       </div>
       <div className="overflow-y-auto flex-1 p-4">
         {sortedList.length === 0 ? (
@@ -639,6 +642,18 @@ const ManageParticipantsPage: React.FC = () => {
     e.preventDefault();
     if (!editingCompetitor || !editName.trim()) return;
     
+    // VERIFICAÇÃO DE LIMITE DE INSCRIÇÕES
+    const nameToCheck = editName.trim().toLowerCase();
+    const existingCount = competitors.filter(c => 
+      c.name.toLowerCase() === nameToCheck && 
+      c.id !== editingCompetitor.id
+    ).length;
+
+    if (existingCount >= 3) {
+      alert(`Erro: Já existem ${existingCount} participantes com o nome "${editName}". O limite é de 3 inscrições por pessoa.`);
+      return;
+    }
+
     const success = await TournamentService.updateName(editingCompetitor.id, editName);
     if (!success) {
       alert("Erro ao salvar.");
