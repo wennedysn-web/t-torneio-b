@@ -115,7 +115,7 @@ const CategorySection = ({ title, category, colorClass, iconColor, competitors }
                         )}
                     </div>
                     <div className="text-xs text-gray-500 font-mono flex gap-2">
-                      <span>ID: {comp.id}</span>
+                      <span>Insc: {comp.id}</span>
                       {comp.score !== null && (
                          <span title="Critério de Desempate: Menor alvo atingido (maior pontuação individual)">
                            (Menor Alvo: {getHighCard(comp)})
@@ -526,7 +526,7 @@ const ScoringPage: React.FC = () => {
                   >
                     <div>
                       <div className="font-bold text-gray-800 group-hover:text-wood-800">{comp.name}</div>
-                      <div className="text-xs text-gray-500 font-mono">ID: {comp.id} • {comp.category}</div>
+                      <div className="text-xs text-gray-500 font-mono">Insc: {comp.id} • {comp.category}</div>
                     </div>
                     {comp.score !== null ? (
                       <div className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
