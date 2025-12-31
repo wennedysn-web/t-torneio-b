@@ -336,27 +336,78 @@ export const TournamentService = {
 
   // --- MATCHES (Mata-mata) ---
   saveMatch: async (match: MatchResult): Promise<boolean> => {
-    // 1. Local
+    // 1. Atualiza Local (para resposta instantânea na UI)
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.MATCHES) || '[]');
-    // Remove se já existir (update)
     const filtered = cached.filter((m: MatchResult) => m.id !== match.id);
     localStorage.setItem(LS_KEYS.MATCHES, JSON.stringify([...filtered, match]));
 
     if (isOfflineMode()) return true;
 
-    // 2. Remoto (Tentativa simplificada, armazenando em tabela se existisse ou localStorage backup)
-    // Como não temos tabela 'matches' no setup original, vamos assumir persistencia local robusta
-    // ou usar uma coluna JSON em competitors se fosse crítico, mas aqui usaremos local first.
-    return true; 
+    // 2. Persiste no Supabase
+    try {
+        const payload = {
+            id: match.id,
+            p1_id: match.p1Id,
+            p2_id: match.p2Id,
+            score1: match.score1,
+            score2: match.score2,
+            winner_id: match.winnerId,
+            timestamp: match.timestamp
+        };
+        
+        // Upsert permite Insert ou Update se o ID já existir
+        const { error } = await supabase.from('matches').upsert(payload);
+        if (error) throw error;
+        
+        return true;
+    } catch (e) {
+        console.error("Erro ao salvar partida no Supabase", e);
+        return true; // Retorna true pois foi salvo localmente ao menos
+    }
   },
 
   getMatches: async (): Promise<MatchResult[]> => {
-     const cached = localStorage.getItem(LS_KEYS.MATCHES);
-     return cached ? JSON.parse(cached) : [];
+     if (isOfflineMode()) {
+        const cached = localStorage.getItem(LS_KEYS.MATCHES);
+        return cached ? JSON.parse(cached) : [];
+     }
+
+     try {
+         const { data, error } = await supabase.from('matches').select('*');
+         if (error) throw error;
+         
+         const formatted = data.map((m: any) => ({
+             id: m.id,
+             p1Id: m.p1_id,
+             p2Id: m.p2_id,
+             score1: m.score1,
+             score2: m.score2,
+             winnerId: m.winner_id,
+             timestamp: m.timestamp
+         }));
+
+         // Atualiza cache local
+         localStorage.setItem(LS_KEYS.MATCHES, JSON.stringify(formatted));
+         return formatted;
+     } catch(e) {
+         console.warn("Erro ao buscar partidas, usando cache local", e);
+         const cached = localStorage.getItem(LS_KEYS.MATCHES);
+         return cached ? JSON.parse(cached) : [];
+     }
   },
 
   deleteMatches: async (): Promise<void> => {
+      // 1. Local
       localStorage.removeItem(LS_KEYS.MATCHES);
+
+      if (isOfflineMode()) return;
+
+      // 2. Remoto
+      try {
+        await supabase.from('matches').delete().neq('id', '0'); // Delete all
+      } catch(e) {
+          console.error("Erro ao limpar partidas remotas", e);
+      }
   },
 
   updateName: async (id: string, newName: string): Promise<boolean> => {
@@ -408,6 +459,9 @@ export const TournamentService = {
 
           // 2. Remoto
           const { error } = await supabase.from('competitors').delete().neq('id', '0');
+          // Também limpa matches
+          await supabase.from('matches').delete().neq('id', '0');
+          
           if (error) throw error;
           return true;
       } catch (e) {

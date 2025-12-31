@@ -65,9 +65,10 @@ interface CategorySectionProps {
   colorClass: string;
   iconColor: string;
   competitors: Competitor[];
+  isWideMode: boolean; // Nova prop para controlar exibição
 }
 
-const CategorySection: React.FC<CategorySectionProps> = ({ title, category, colorClass, iconColor, competitors }) => {
+const CategorySection: React.FC<CategorySectionProps> = ({ title, category, colorClass, iconColor, competitors, isWideMode }) => {
   const list = competitors.filter(c => c.category === category);
   // Sort ensures leaderboard reflects the tie-break rules
   const sortedList = sortCompetitors(list);
@@ -127,8 +128,11 @@ const CategorySection: React.FC<CategorySectionProps> = ({ title, category, colo
                         )}
                     </div>
                     <div className="text-xs text-gray-500 font-mono flex flex-wrap gap-x-2 gap-y-1">
-                      <span>Insc: {comp.id}</span>
-                      {comp.score !== null && (
+                      {/* Se for Wide Mode, mostra apenas o ID, sem o prefixo 'Insc:' */}
+                      <span>{isWideMode ? '' : 'Insc: '}{comp.id}</span>
+                      
+                      {/* Se for Wide Mode, oculta os alvos */}
+                      {!isWideMode && comp.score !== null && (
                          <span className="text-gray-400" title="Alvos atingidos (Critério de Desempate)">
                            • Alvos: {formatTargets(comp)}
                          </span>
@@ -251,6 +255,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
               colorClass={colors.bg}
               iconColor={colors.icon}
               competitors={displayedCompetitors}
+              isWideMode={isWideMode} // Passando o estado para o componente filho
             />
           );
         })}
