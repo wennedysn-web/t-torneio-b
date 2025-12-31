@@ -3,7 +3,7 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -159,6 +159,9 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [error, setError] = useState<string | null>(null);
+  
+  // Estado para controlar o modo de exibição (Normal vs Projeção)
+  const [isWideMode, setIsWideMode] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -195,16 +198,49 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
     return colors[index % colors.length];
   };
 
+  // Define quantas colunas teremos baseado no número de categorias
+  // Se estiver no modo Wide, tentamos colocar todas na mesma linha (se couberem)
+  const gridStyle = isWideMode && categories.length > 0
+    ? { 
+        gridTemplateColumns: `repeat(${categories.length}, minmax(0, 1fr))` 
+      }
+    : {};
+
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div className={`transition-all duration-500 ${isWideMode ? 'w-full px-4' : 'max-w-7xl mx-auto p-4 sm:p-6 lg:p-8'}`}>
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div className="text-center md:text-left">
             <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Classificação Geral</h1>
             <p className="text-gray-500">Torneio de Baladeira - Resultados {year}</p>
         </div>
+        
+        {/* Botão de Alternância de Layout */}
+        <button 
+          onClick={() => setIsWideMode(!isWideMode)}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-wood-50 text-wood-700 transition-all active:scale-95"
+          title={isWideMode ? "Voltar ao Layout Padrão" : "Modo Projeção (Tela Cheia)"}
+        >
+            {isWideMode ? (
+                <>
+                    <Layout className="w-5 h-5" />
+                    <span className="font-medium hidden sm:inline">Modo Padrão</span>
+                </>
+            ) : (
+                <>
+                    <Monitor className="w-5 h-5" />
+                    <span className="font-medium hidden sm:inline">Modo Projeção</span>
+                </>
+            )}
+        </button>
       </div>
 
-      <div className={`grid gap-6 ${categories.length === 1 ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-2'}`}>
+      <div 
+        className={`grid gap-6 transition-all duration-300 ${
+            // Se não for modo Wide, usa as classes padrão do Tailwind
+            !isWideMode ? (categories.length === 1 ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-2') : 'grid-cols-1 md:grid-cols-2' // Fallback para mobile no modo wide
+        }`}
+        style={window.innerWidth >= 768 ? gridStyle : {}} // Aplica colunas dinâmicas apenas em desktop/projetor
+      >
         {categories.map((cat, idx) => {
           const colors = getColors(idx);
           return (
