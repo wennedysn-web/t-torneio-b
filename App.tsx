@@ -7,9 +7,10 @@ import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edi
 
 // --- UTILS ---
 
-const getHighCard = (c: Competitor): number => {
-  if (!c.targetsHit || c.targetsHit.length === 0) return 0;
-  return Math.max(...c.targetsHit);
+// Formata a lista de alvos para exibição (Ordenado Crescente: 10, 12, 24...)
+const formatTargets = (c: Competitor): string => {
+  if (!c.targetsHit || c.targetsHit.length === 0) return "";
+  return [...c.targetsHit].sort((a, b) => a - b).join(', ');
 };
 
 // Verifica se dois competidores estão PERFEITAMENTE empatados (Mesmo Score TOTAL e Mesmos ALVOS individuais)
@@ -35,7 +36,7 @@ const sortCompetitors = (competitors: Competitor[]) => {
     if (scoreA !== scoreB) return scoreB - scoreA;
     
     // 2. Deep Tie-break: Compare individual targets from Highest to Lowest
-    // Sort both arrays descending (24, 22, 20...)
+    // Sort both arrays descending (24, 22, 20...) for comparison logic
     const hitsA = [...(a.targetsHit || [])].sort((x, y) => y - x);
     const hitsB = [...(b.targetsHit || [])].sort((x, y) => y - x);
 
@@ -58,7 +59,15 @@ const sortCompetitors = (competitors: Competitor[]) => {
 
 // --- COMPONENTS ---
 
-const CategorySection = ({ title, category, colorClass, iconColor, competitors }: { title: string, category: string, colorClass: string, iconColor: string, competitors: Competitor[] }) => {
+interface CategorySectionProps {
+  title: string;
+  category: string;
+  colorClass: string;
+  iconColor: string;
+  competitors: Competitor[];
+}
+
+const CategorySection: React.FC<CategorySectionProps> = ({ title, category, colorClass, iconColor, competitors }) => {
   const list = competitors.filter(c => c.category === category);
   // Sort ensures leaderboard reflects the tie-break rules
   const sortedList = sortCompetitors(list);
@@ -114,11 +123,11 @@ const CategorySection = ({ title, category, colorClass, iconColor, competitors }
                             </span>
                         )}
                     </div>
-                    <div className="text-xs text-gray-500 font-mono flex gap-2">
+                    <div className="text-xs text-gray-500 font-mono flex flex-wrap gap-x-2 gap-y-1">
                       <span>Insc: {comp.id}</span>
                       {comp.score !== null && (
-                         <span title="Critério de Desempate: Menor alvo atingido (maior pontuação individual)">
-                           (Menor Alvo: {getHighCard(comp)})
+                         <span className="text-gray-400" title="Alvos atingidos (Critério de Desempate)">
+                           • Alvos: {formatTargets(comp)}
                          </span>
                       )}
                     </div>
@@ -819,7 +828,7 @@ const ManageParticipantsPage: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900">{comp.name}</div>
                         {comp.score !== null && (
-                            <div className="text-xs text-gray-400">Menor Alvo: {getHighCard(comp)}</div>
+                            <div className="text-xs text-gray-400">Alvos: {formatTargets(comp)}</div>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -1100,7 +1109,7 @@ const BracketPage: React.FC = () => {
         </span>
         <div className="flex flex-col items-end">
             <span className="text-gray-500 font-mono text-xs">{p1?.score ?? '-'}</span>
-            {p1?.score && <span className="text-[10px] text-gray-400">Menor Alvo: {getHighCard(p1)}</span>}
+            {p1?.score && <span className="text-[10px] text-gray-400">Alvos: {formatTargets(p1)}</span>}
         </div>
       </div>
       <div className="h-px bg-gray-200"></div>
@@ -1110,7 +1119,7 @@ const BracketPage: React.FC = () => {
         </span>
         <div className="flex flex-col items-end">
             <span className="text-gray-500 font-mono text-xs">{p2?.score ?? '-'}</span>
-            {p2?.score && <span className="text-[10px] text-gray-400">Menor Alvo: {getHighCard(p2)}</span>}
+            {p2?.score && <span className="text-[10px] text-gray-400">Alvos: {formatTargets(p2)}</span>}
         </div>
       </div>
     </div>
