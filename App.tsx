@@ -475,6 +475,7 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [isTiebreakerModalOpen, setIsTiebreakerModalOpen] = useState(false);
+  const [isResetTiebreakerModalOpen, setIsResetTiebreakerModalOpen] = useState(false);
 
   // Reload competitors when searching or after update
   const refreshList = async () => {
@@ -530,6 +531,19 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
           alert("Ponto de desempate (+1) adicionado com sucesso!");
       } else {
           alert("Erro ao adicionar ponto de desempate.");
+      }
+  };
+
+  const handleConfirmResetTiebreaker = async () => {
+      if (!selectedCompetitor) return;
+      
+      const success = await TournamentService.resetTiebreaker(selectedCompetitor.id, selectedCompetitor.targetsHit || []);
+      if (success) {
+          setIsResetTiebreakerModalOpen(false);
+          await refreshList(); // Update UI
+          alert("Todos os pontos de desempate foram removidos!");
+      } else {
+          alert("Erro ao resetar pontos de desempate.");
       }
   };
 
@@ -607,18 +621,26 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
             initialTargets={selectedCompetitor.targetsHit} 
           />
 
-          {/* Botão de Desempate */}
-          <div className="mt-8 flex justify-center border-t border-gray-200 pt-8">
+          {/* Botões de Ação Extra (Desempate) */}
+          <div className="mt-8 flex flex-col items-center gap-4 border-t border-gray-200 pt-8">
               <button 
                 onClick={() => setIsTiebreakerModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors font-semibold"
+                className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors font-semibold w-full sm:w-auto justify-center"
               >
                   <Gavel className="w-5 h-5" />
                   Desempate +1
               </button>
+
+              <button 
+                onClick={() => setIsResetTiebreakerModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl hover:bg-orange-100 transition-colors font-semibold text-sm w-full sm:w-auto justify-center"
+              >
+                  <RotateCcw className="w-4 h-4" />
+                  Redefinir Desempate
+              </button>
           </div>
 
-          {/* Modal de Confirmação de Desempate */}
+          {/* Modal de Confirmação de Desempate (+1) */}
           {isTiebreakerModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
                   <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border-2 border-indigo-100">
@@ -642,6 +664,36 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
                               className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20"
                           >
                               Confirmar (+1)
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          {/* Modal de Confirmação de RESET Desempate */}
+          {isResetTiebreakerModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border-2 border-orange-100">
+                      <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <RotateCcw className="w-8 h-8 text-orange-600" />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Redefinir Desempate?</h3>
+                      <p className="text-gray-500 text-center text-sm mb-6">
+                          Isso irá <strong>remover TODOS</strong> os pontos extras de desempate de <strong>{selectedCompetitor.name}</strong>. A pontuação voltará ao normal.
+                      </p>
+                      
+                      <div className="flex gap-3">
+                          <button 
+                              onClick={() => setIsResetTiebreakerModalOpen(false)}
+                              className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
+                          >
+                              Cancelar
+                          </button>
+                          <button 
+                              onClick={handleConfirmResetTiebreaker}
+                              className="flex-1 py-3 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 shadow-lg shadow-orange-600/20"
+                          >
+                              Sim, Redefinir
                           </button>
                       </div>
                   </div>

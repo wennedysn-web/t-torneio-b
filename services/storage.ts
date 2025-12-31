@@ -315,6 +315,13 @@ export const TournamentService = {
     return await TournamentService.updateScore(id, newTargets);
   },
 
+  // Remove todos os pontos de desempate (valor 1)
+  resetTiebreaker: async (id: string, currentTargets: number[]): Promise<boolean> => {
+    // Filtra removendo o valor '1'
+    const newTargets = currentTargets.filter(val => val !== 1);
+    return await TournamentService.updateScore(id, newTargets);
+  },
+
   updateName: async (id: string, newName: string): Promise<boolean> => {
     // 1. Local
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
