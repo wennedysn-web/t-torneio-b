@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
-import { TournamentService, supabase } from './services/storage';
+import { TournamentService, supabase, MatchResult } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -505,26 +505,124 @@ const RegistrationPage: React.FC<{ year: number }> = ({ year }) => {
   );
 };
 
+// --- MATA-MATA SCORING COMPONENT ---
+const KnockoutMatchScoring: React.FC<{ 
+    p1: Competitor | undefined, 
+    p2: Competitor | undefined, 
+    onSave: (winnerId: string, s1: number, s2: number) => void 
+}> = ({ p1, p2, onSave }) => {
+    const [score1, setScore1] = useState(0);
+    const [score2, setScore2] = useState(0);
+
+    const toggleScore = (current: number, setter: any, idx: number) => {
+        // Logica simples: Se clicar no indice X e ele ja estiver marcado, desmarca. Se não, marca até ele.
+        // Aqui vamos fazer simples: Clicar incrementa ou define? 
+        // User asked: "desenhe 5 alvos para seleção"
+        // Let's make individual toggles that sum up
+        // Actually, just input 0-5 via circles is easier.
+        // Logic: Click on circle 3 -> Score is 3. Click on circle 3 again -> Score is 2? No, standard rating star logic.
+        if (current === idx + 1) setter(idx);
+        else setter(idx + 1);
+    };
+
+    const renderCircles = (score: number, setScore: any, color: string) => (
+        <div className="flex gap-2 justify-center">
+            {[...Array(5)].map((_, i) => (
+                <button
+                    key={i}
+                    onClick={() => toggleScore(score, setScore, i)}
+                    className={`w-10 h-10 rounded-full border-2 transition-all ${
+                        i < score 
+                        ? `bg-${color}-500 border-${color}-600 shadow-md` 
+                        : 'bg-gray-100 border-gray-300 hover:bg-gray-200'
+                    }`}
+                />
+            ))}
+        </div>
+    );
+
+    if (!p1 || !p2) return <div className="text-center p-4 text-gray-400">Selecione um confronto válido.</div>;
+
+    const handleConfirm = () => {
+        if (score1 === score2) {
+            alert("O mata-mata não pode terminar empatado! Realize o desempate.");
+            return;
+        }
+        const winnerId = score1 > score2 ? p1.id : p2.id;
+        onSave(winnerId, score1, score2);
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+             <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                {/* P1 */}
+                <div className="flex-1 text-center">
+                    <h3 className="text-xl font-bold text-gray-800 mb-1">{p1.name}</h3>
+                    <div className="text-xs text-gray-500 font-mono mb-4">{p1.id}</div>
+                    {renderCircles(score1, setScore1, 'green')}
+                    <div className="mt-2 font-bold text-2xl text-green-700">{score1}</div>
+                </div>
+
+                {/* VS */}
+                <div className="text-2xl font-black text-gray-300">VS</div>
+
+                {/* P2 */}
+                <div className="flex-1 text-center">
+                    <h3 className="text-xl font-bold text-gray-800 mb-1">{p2.name}</h3>
+                    <div className="text-xs text-gray-500 font-mono mb-4">{p2.id}</div>
+                    {renderCircles(score2, setScore2, 'blue')}
+                    <div className="mt-2 font-bold text-2xl text-blue-700">{score2}</div>
+                </div>
+             </div>
+
+             <div className="mt-8 text-center">
+                 <button 
+                    onClick={handleConfirm}
+                    className="bg-wood-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-wood-700 transition-colors shadow-lg"
+                 >
+                     Confirmar Vencedor
+                 </button>
+             </div>
+        </div>
+    );
+};
+
 // 4. Scoring Page
 const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
+  const [activeTab, setActiveTab] = useState<'classificatoria' | 'matamata'>('classificatoria');
+  
+  // States Classificatoria
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [isTiebreakerModalOpen, setIsTiebreakerModalOpen] = useState(false);
   const [isResetTiebreakerModalOpen, setIsResetTiebreakerModalOpen] = useState(false);
 
+  // States Mata-mata
+  const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [mmCategory, setMmCategory] = useState('');
+  const [mmPhase, setMmPhase] = useState('R16'); // R16, QF, SF, F
+  const [matches, setMatches] = useState<MatchResult[]>([]);
+
   // Reload competitors when searching or after update
   const refreshList = async () => {
     try {
       const data = await TournamentService.getAll();
-      // Filter for Selected YEAR passed by prop
+      const cats = await TournamentService.getCategories();
+      const matchData = await TournamentService.getMatches();
+
       setCompetitors(data.filter(c => c.year === year));
+      setCategories(cats);
+      setMatches(matchData);
       
-      // Update selected competitor if it exists to reflect changes (like extra points)
       if (selectedCompetitor) {
           const updated = data.find(c => c.id === selectedCompetitor.id);
           if (updated) setSelectedCompetitor(updated);
       }
+      
+      // Default category for MM
+      if (!mmCategory && cats.length > 0) setMmCategory(cats[0].name);
+
     } catch (e) { console.error(e); }
   };
 
@@ -532,9 +630,10 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
     refreshList();
   }, [year]);
 
+  // --- Handlers Classificatoria ---
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
-    setSelectedCompetitor(null); // Deselect if searching again
+    setSelectedCompetitor(null);
   };
 
   const filteredCompetitors = competitors.filter(c => {
@@ -545,680 +644,564 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
 
   const handleSaveScore = async (targets: number[]) => {
     if (!selectedCompetitor) return;
-
     const success = await TournamentService.updateScore(selectedCompetitor.id, targets);
     if (success) {
       alert('Pontuação salva com sucesso!');
-      // setSelectedCompetitor(null); // Optional: Keep selected to see result
       setSearchTerm('');
       refreshList();
-    } else {
-      alert('Erro ao salvar pontuação.');
-    }
+    } else alert('Erro ao salvar pontuação.');
   };
 
   const handleConfirmTiebreaker = async () => {
       if (!selectedCompetitor) return;
-      
       const success = await TournamentService.addTiebreaker(selectedCompetitor.id, selectedCompetitor.targetsHit || []);
       if (success) {
           setIsTiebreakerModalOpen(false);
-          await refreshList(); // Update UI
+          await refreshList();
           alert("Ponto de desempate (+1) adicionado com sucesso!");
-      } else {
-          alert("Erro ao adicionar ponto de desempate.");
-      }
+      } else alert("Erro ao adicionar ponto de desempate.");
   };
 
   const handleConfirmResetTiebreaker = async () => {
       if (!selectedCompetitor) return;
-      
       const success = await TournamentService.resetTiebreaker(selectedCompetitor.id, selectedCompetitor.targetsHit || []);
       if (success) {
           setIsResetTiebreakerModalOpen(false);
-          await refreshList(); // Update UI
+          await refreshList();
           alert("Todos os pontos de desempate foram removidos!");
-      } else {
-          alert("Erro ao resetar pontos de desempate.");
-      }
+      } else alert("Erro ao resetar pontos de desempate.");
   };
+
+  // --- Handlers Mata-mata ---
+  const handleSaveMatch = async (idx: number, p1: Competitor, p2: Competitor, winnerId: string, s1: number, s2: number) => {
+      const matchId = `${mmCategory}-${year}-${mmPhase}-${idx}`;
+      const result: MatchResult = {
+          id: matchId,
+          p1Id: p1.id,
+          p2Id: p2.id,
+          score1: s1,
+          score2: s2,
+          winnerId: winnerId,
+          timestamp: Date.now()
+      };
+      await TournamentService.saveMatch(result);
+      await refreshList();
+      alert("Resultado do confronto salvo!");
+  };
+
+  // Logic to build matchups based on ranking and previous winners
+  const getMatchups = () => {
+      if (!mmCategory) return [];
+      const catCompetitors = sortCompetitors(competitors.filter(c => c.category === mmCategory));
+      const catMatches = matches.filter(m => m.id.startsWith(`${mmCategory}-${year}`));
+
+      // Helper to find winner of previous phase
+      const getWinner = (phase: string, idx: number) => {
+          const m = catMatches.find(m => m.id === `${mmCategory}-${year}-${phase}-${idx}`);
+          if (!m || !m.winnerId) return undefined;
+          return competitors.find(c => c.id === m.winnerId);
+      };
+
+      const isLivre = mmCategory === 'Livre';
+      const pairings16 = [
+        { p1: 0, p2: 15 }, { p1: 7, p2: 8 }, { p1: 3, p2: 12 }, { p1: 4, p2: 11 },
+        { p1: 1, p2: 14 }, { p1: 6, p2: 9 }, { p1: 2, p2: 13 }, { p1: 5, p2: 10 }
+      ];
+      // Feminina/Others (Top 4)
+      const pairingsSF_Small = [{ p1: 0, p2: 3 }, { p1: 1, p2: 2 }];
+
+      if (mmPhase === 'R16') {
+          if (!isLivre) return []; // Only Livre has R16
+          return pairings16.map((pair, i) => ({
+              idx: i,
+              p1: catCompetitors[pair.p1],
+              p2: catCompetitors[pair.p2]
+          }));
+      }
+
+      if (mmPhase === 'QF') {
+          if (!isLivre) return []; 
+          // Winners of R16 pairs. 
+          // QF1: Winner(R16_0) vs Winner(R16_1) ... actually logic matches bracket tree
+          // Pairings in bracket: 
+          // Match 1 (0vs15) vs Match 2 (7vs8) -> QF1
+          // Match 3 (3vs12) vs Match 4 (4vs11) -> QF2
+          return [0, 1, 2, 3].map(i => ({
+              idx: i,
+              p1: getWinner('R16', i*2),
+              p2: getWinner('R16', i*2 + 1)
+          }));
+      }
+
+      if (mmPhase === 'SF') {
+          if (isLivre) {
+              return [0, 1].map(i => ({
+                  idx: i,
+                  p1: getWinner('QF', i*2),
+                  p2: getWinner('QF', i*2 + 1)
+              }));
+          } else {
+              // Direct from Ranking
+              return pairingsSF_Small.map((pair, i) => ({
+                  idx: i,
+                  p1: catCompetitors[pair.p1],
+                  p2: catCompetitors[pair.p2]
+              }));
+          }
+      }
+
+      if (mmPhase === 'F') {
+          return [{
+              idx: 0,
+              p1: getWinner('SF', 0),
+              p2: getWinner('SF', 1)
+          }];
+      }
+
+      return [];
+  };
+
+  const currentMatchups = getMatchups();
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-8">
-       <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
+       <h1 className="text-3xl font-bold text-gray-900 mb-6 flex items-center gap-3">
         <Medal className="w-8 h-8 text-wood-600" />
         Lançar Pontuação ({year})
       </h1>
 
-      {/* Search Section */}
-      {!selectedCompetitor && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
-          <div className="relative">
-            <Search className="absolute left-4 top-3.5 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={handleSearch}
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none"
-              placeholder="Pesquisar por Nome ou Número de Inscrição (ex: L123)..."
-            />
-          </div>
+      <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 mb-8 w-fit">
+          <button 
+             onClick={() => setActiveTab('classificatoria')}
+             className={`px-6 py-2 rounded-lg font-medium transition-all ${activeTab === 'classificatoria' ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+              Fase Classificatória
+          </button>
+          <button 
+             onClick={() => setActiveTab('matamata')}
+             className={`px-6 py-2 rounded-lg font-medium transition-all ${activeTab === 'matamata' ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+              Mata-mata
+          </button>
+      </div>
 
-          {searchTerm && (
-            <div className="mt-4 space-y-2">
-              {filteredCompetitors.length === 0 ? (
-                <div className="text-center py-4 text-gray-500">Nenhum competidor encontrado para {year}.</div>
-              ) : (
-                filteredCompetitors.map(comp => (
-                  <button
-                    key={comp.id}
-                    onClick={() => setSelectedCompetitor(comp)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-wood-50 rounded-xl border border-transparent hover:border-wood-200 transition-all text-left group"
-                  >
-                    <div>
-                      <div className="font-bold text-gray-800 group-hover:text-wood-800">{comp.name}</div>
-                      <div className="text-xs text-gray-500 font-mono">Insc: {comp.id} • {comp.category}</div>
-                    </div>
-                    {comp.score !== null ? (
-                      <div className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                        {comp.score} pts
-                      </div>
+      {/* --- TAB CLASSIFICATORIA --- */}
+      {activeTab === 'classificatoria' && (
+        <>
+            {!selectedCompetitor && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+                <div className="relative">
+                    <Search className="absolute left-4 top-3.5 text-gray-400 w-5 h-5" />
+                    <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={handleSearch}
+                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none"
+                    placeholder="Pesquisar por Nome ou Número de Inscrição..."
+                    />
+                </div>
+
+                {searchTerm && (
+                    <div className="mt-4 space-y-2">
+                    {filteredCompetitors.length === 0 ? (
+                        <div className="text-center py-4 text-gray-500">Nenhum competidor encontrado para {year}.</div>
                     ) : (
-                      <div className="px-3 py-1 bg-gray-100 text-gray-500 text-xs font-bold rounded-full">
-                        Pendente
-                      </div>
+                        filteredCompetitors.map(comp => (
+                        <button
+                            key={comp.id}
+                            onClick={() => setSelectedCompetitor(comp)}
+                            className="w-full flex items-center justify-between p-4 hover:bg-wood-50 rounded-xl border border-transparent hover:border-wood-200 transition-all text-left group"
+                        >
+                            <div>
+                            <div className="font-bold text-gray-800 group-hover:text-wood-800">{comp.name}</div>
+                            <div className="text-xs text-gray-500 font-mono">Insc: {comp.id} • {comp.category}</div>
+                            </div>
+                            {comp.score !== null ? (
+                            <div className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
+                                {comp.score} pts
+                            </div>
+                            ) : (
+                            <div className="px-3 py-1 bg-gray-100 text-gray-500 text-xs font-bold rounded-full">
+                                Pendente
+                            </div>
+                            )}
+                        </button>
+                        ))
                     )}
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+                    </div>
+                )}
+                </div>
+            )}
+
+            {selectedCompetitor && (
+                <div className="animate-fade-in relative">
+                <div className="flex items-center justify-between mb-6">
+                    <button 
+                    onClick={() => setSelectedCompetitor(null)}
+                    className="text-sm text-gray-500 hover:text-wood-600 underline"
+                    >
+                    &larr; Voltar para pesquisa
+                    </button>
+                    <div className="text-right">
+                    <span className="text-2xl font-bold font-mono text-wood-700">{selectedCompetitor.id}</span>
+                    <div className="text-sm font-medium text-gray-600">{selectedCompetitor.name}</div>
+                    </div>
+                </div>
+                
+                <TargetBoard 
+                    onScoreConfirm={handleSaveScore}
+                    initialTargets={selectedCompetitor.targetsHit} 
+                />
+
+                <div className="mt-8 flex flex-col items-center gap-4 border-t border-gray-200 pt-8">
+                    <button 
+                        onClick={() => setIsTiebreakerModalOpen(true)}
+                        className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors font-semibold w-full sm:w-auto justify-center"
+                    >
+                        <Gavel className="w-5 h-5" />
+                        Desempate +1
+                    </button>
+
+                    <button 
+                        onClick={() => setIsResetTiebreakerModalOpen(true)}
+                        className="flex items-center gap-2 px-6 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl hover:bg-orange-100 transition-colors font-semibold text-sm w-full sm:w-auto justify-center"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                        Redefinir Desempate
+                    </button>
+                </div>
+
+                {isTiebreakerModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border-2 border-indigo-100">
+                            <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Gavel className="w-8 h-8 text-indigo-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Confirmar Desempate?</h3>
+                            <p className="text-gray-500 text-center text-sm mb-6">
+                                Isso adicionará <strong className="text-indigo-700">+1 ponto</strong> ao placar total de <strong>{selectedCompetitor.name}</strong> para fins de reclassificação.
+                            </p>
+                            
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => setIsTiebreakerModalOpen(false)}
+                                    className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    onClick={handleConfirmTiebreaker}
+                                    className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20"
+                                >
+                                    Confirmar (+1)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isResetTiebreakerModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border-2 border-orange-100">
+                            <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <RotateCcw className="w-8 h-8 text-orange-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Redefinir Desempate?</h3>
+                            <p className="text-gray-500 text-center text-sm mb-6">
+                                Isso irá <strong>remover TODOS</strong> os pontos extras de desempate de <strong>{selectedCompetitor.name}</strong>. A pontuação voltará ao normal.
+                            </p>
+                            
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => setIsResetTiebreakerModalOpen(false)}
+                                    className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    onClick={handleConfirmResetTiebreaker}
+                                    className="flex-1 py-3 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 shadow-lg shadow-orange-600/20"
+                                >
+                                    Sim, Redefinir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                </div>
+            )}
+        </>
       )}
 
-      {/* Scoring Section */}
-      {selectedCompetitor && (
-        <div className="animate-fade-in relative">
-          <div className="flex items-center justify-between mb-6">
-            <button 
-              onClick={() => setSelectedCompetitor(null)}
-              className="text-sm text-gray-500 hover:text-wood-600 underline"
-            >
-              &larr; Voltar para pesquisa
-            </button>
-            <div className="text-right">
-              <span className="text-2xl font-bold font-mono text-wood-700">{selectedCompetitor.id}</span>
-              <div className="text-sm font-medium text-gray-600">{selectedCompetitor.name}</div>
-            </div>
-          </div>
-          
-          <TargetBoard 
-            onScoreConfirm={handleSaveScore}
-            initialTargets={selectedCompetitor.targetsHit} 
-          />
-
-          {/* Botões de Ação Extra (Desempate) */}
-          <div className="mt-8 flex flex-col items-center gap-4 border-t border-gray-200 pt-8">
-              <button 
-                onClick={() => setIsTiebreakerModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors font-semibold w-full sm:w-auto justify-center"
-              >
-                  <Gavel className="w-5 h-5" />
-                  Desempate +1
-              </button>
-
-              <button 
-                onClick={() => setIsResetTiebreakerModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl hover:bg-orange-100 transition-colors font-semibold text-sm w-full sm:w-auto justify-center"
-              >
-                  <RotateCcw className="w-4 h-4" />
-                  Redefinir Desempate
-              </button>
-          </div>
-
-          {/* Modal de Confirmação de Desempate (+1) */}
-          {isTiebreakerModalOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                  <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border-2 border-indigo-100">
-                      <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Gavel className="w-8 h-8 text-indigo-600" />
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Confirmar Desempate?</h3>
-                      <p className="text-gray-500 text-center text-sm mb-6">
-                          Isso adicionará <strong className="text-indigo-700">+1 ponto</strong> ao placar total de <strong>{selectedCompetitor.name}</strong> para fins de reclassificação.
-                      </p>
-                      
-                      <div className="flex gap-3">
-                          <button 
-                              onClick={() => setIsTiebreakerModalOpen(false)}
-                              className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
-                          >
-                              Cancelar
-                          </button>
-                          <button 
-                              onClick={handleConfirmTiebreaker}
-                              className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20"
-                          >
-                              Confirmar (+1)
-                          </button>
-                      </div>
+      {/* --- TAB MATA-MATA --- */}
+      {activeTab === 'matamata' && (
+          <div className="animate-fade-in space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Selector Categoria */}
+                  <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                      <select 
+                        value={mmCategory}
+                        onChange={(e) => setMmCategory(e.target.value)}
+                        className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 outline-none bg-white"
+                      >
+                          {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                      </select>
+                  </div>
+                   {/* Selector Fase */}
+                   <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fase</label>
+                      <select 
+                        value={mmPhase}
+                        onChange={(e) => setMmPhase(e.target.value)}
+                        className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 outline-none bg-white"
+                      >
+                          {mmCategory === 'Livre' && <option value="R16">Oitavas de Final</option>}
+                          {mmCategory === 'Livre' && <option value="QF">Quartas de Final</option>}
+                          <option value="SF">Semifinal</option>
+                          <option value="F">Final</option>
+                      </select>
                   </div>
               </div>
-          )}
 
-          {/* Modal de Confirmação de RESET Desempate */}
-          {isResetTiebreakerModalOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                  <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border-2 border-orange-100">
-                      <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <RotateCcw className="w-8 h-8 text-orange-600" />
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Redefinir Desempate?</h3>
-                      <p className="text-gray-500 text-center text-sm mb-6">
-                          Isso irá <strong>remover TODOS</strong> os pontos extras de desempate de <strong>{selectedCompetitor.name}</strong>. A pontuação voltará ao normal.
-                      </p>
-                      
-                      <div className="flex gap-3">
-                          <button 
-                              onClick={() => setIsResetTiebreakerModalOpen(false)}
-                              className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
-                          >
-                              Cancelar
-                          </button>
-                          <button 
-                              onClick={handleConfirmResetTiebreaker}
-                              className="flex-1 py-3 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 shadow-lg shadow-orange-600/20"
-                          >
-                              Sim, Redefinir
-                          </button>
-                      </div>
+              {currentMatchups.length === 0 ? (
+                  <div className="p-8 text-center bg-gray-50 rounded-xl text-gray-500">
+                      Nenhum confronto disponível para esta fase/categoria ainda.
+                      <br/>
+                      <span className="text-xs">Verifique se a fase anterior foi concluída ou se há competidores suficientes.</span>
                   </div>
-              </div>
-          )}
-        </div>
+              ) : (
+                  <div className="space-y-4">
+                      {currentMatchups.map((m) => (
+                          <div key={m.idx} className="border-t border-gray-100 pt-4">
+                              <h3 className="text-sm font-bold text-gray-400 uppercase mb-2">Confronto #{m.idx + 1}</h3>
+                              <KnockoutMatchScoring 
+                                p1={m.p1} 
+                                p2={m.p2} 
+                                onSave={(wid, s1, s2) => handleSaveMatch(m.idx, m.p1!, m.p2!, wid, s1, s2)}
+                              />
+                          </div>
+                      ))}
+                  </div>
+              )}
+          </div>
       )}
     </div>
   );
 };
 
-// 5. Manage Participants Page (Includes Categories)
+// 5. Manage Page
 const ManageParticipantsPage: React.FC<{ year: number }> = ({ year }) => {
-  const [activeTab, setActiveTab] = useState<'participants' | 'categories'>('participants');
-
-  // --- Participants Logic ---
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Modal State
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null);
-  const [editName, setEditName] = useState('');
-
-  // Reset Modal State
-  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const [resetPassword, setResetPassword] = useState('');
-
-  const [isSeeding, setIsSeeding] = useState(false);
-
-  // --- Categories Logic ---
   const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  
+  // New Category State
   const [newCatName, setNewCatName] = useState('');
   const [newCatPrefix, setNewCatPrefix] = useState('');
 
-  // --- DB Status ---
-  const [dbStatus, setDbStatus] = useState<{ok: boolean, message?: string} | null>(null);
-
-  const refreshList = async () => {
+  const loadData = async () => {
     try {
-      const data = await TournamentService.getAll();
-      setCompetitors(sortCompetitors(data)); 
-      
-      const cats = await TournamentService.getCategories();
-      setCategories(cats);
-    } catch(e) { console.error(e); }
+        const all = await TournamentService.getAll();
+        setCompetitors(all.filter(c => c.year === year));
+        
+        const cats = await TournamentService.getCategories();
+        setCategories(cats);
+    } catch (e) { console.error(e); }
   };
 
   useEffect(() => {
-    refreshList();
-    // Check DB health
-    TournamentService.checkHealth().then(status => setDbStatus(status));
-  }, []);
+    loadData();
+  }, [year]);
 
-  // -- Participant Handlers
-  const openEditModal = (comp: Competitor) => {
-    setEditingCompetitor(comp);
-    setEditName(comp.name);
-    setIsEditModalOpen(true);
+  const handleEdit = (c: Competitor) => {
+      setEditingId(c.id);
+      setEditName(c.name);
   };
 
-  const closeEditModal = () => {
-    setIsEditModalOpen(false);
-    setEditingCompetitor(null);
-    setEditName('');
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingCompetitor || !editName.trim()) return;
-    
-    // VERIFICAÇÃO DE LIMITE DE INSCRIÇÕES (No mesmo ano)
-    const nameToCheck = editName.trim().toLowerCase();
-    const existingCount = competitors.filter(c => 
-      c.name.toLowerCase() === nameToCheck && 
-      c.id !== editingCompetitor.id &&
-      c.year === editingCompetitor.year
-    ).length;
-
-    if (existingCount >= 3) {
-      alert(`Erro: Já existem ${existingCount} participantes com o nome "${editName}" no ano ${editingCompetitor.year}. O limite é de 3 inscrições por pessoa/ano.`);
-      return;
-    }
-
-    const success = await TournamentService.updateName(editingCompetitor.id, editName);
-    if (!success) {
-      alert("Erro ao salvar.");
-      return;
-    }
-    closeEditModal();
-    refreshList();
+  const handleSaveEdit = async () => {
+      if (!editingId) return;
+      await TournamentService.updateName(editingId, editName);
+      setEditingId(null);
+      loadData();
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este participante? Esta ação não pode ser desfeita.')) {
-      
-      const originalList = [...competitors];
-      
-      // 1. Atualização Otimista
-      setCompetitors(current => current.filter(c => c.id !== id));
-      
-      // 2. Chama o serviço em segundo plano
-      const success = await TournamentService.deleteCompetitor(id);
-
-      // 3. Se falhar, reverte a alteração
-      if (!success) {
-          alert("Erro ao excluir do banco de dados. Verifique sua conexão ou permissões.");
-          setCompetitors(originalList);
-      }
-    }
-  };
-
-  const handleSeed = async () => {
-    if (window.confirm(`Isso irá gerar competidores aleatórios nas categorias existentes para o ano ${year}. Deseja continuar?`)) {
-      setIsSeeding(true);
-      try {
-        await TournamentService.seedDatabase();
-        await refreshList();
-        alert('Dados de teste gerados com sucesso!');
-      } catch (e: any) {
-        console.error(e);
-        alert(`Erro ao gerar dados: ${e.message || e}`);
-      } finally {
-        setIsSeeding(false);
-      }
-    }
-  };
-
-  const handleResetData = async (e: React.FormEvent) => {
-      e.preventDefault();
-      // Verificação simples de senha (Admin Offline ou senha padrão)
-      if (resetPassword === 'admin' || resetPassword === 'admin123') {
-          const confirmed = await TournamentService.deleteAllCompetitors();
-          if (confirmed) {
-              alert("Todos os dados foram excluídos.");
-              setIsResetModalOpen(false);
-              setResetPassword('');
-              setCompetitors([]);
-              refreshList();
-          } else {
-              alert("Erro ao tentar excluir.");
-          }
-      } else {
-          alert("Senha incorreta.");
+      if (confirm('Tem certeza que deseja excluir este competidor?')) {
+          await TournamentService.deleteCompetitor(id);
+          loadData();
       }
   };
-
-  // -- Category Handlers
-  const handleAddCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCatName.trim() || !newCatPrefix.trim()) return;
-    
-    // Check duplication
-    const existing = categories.find(c => c.name.toLowerCase() === newCatName.toLowerCase() || c.prefix === newCatPrefix.toUpperCase());
-    if (existing) {
-      alert("Já existe uma categoria com esse nome ou prefixo.");
-      return;
-    }
-
-    await TournamentService.addCategory(newCatName.trim(), newCatPrefix.trim());
-    setNewCatName('');
-    setNewCatPrefix('');
-    refreshList();
+  
+  const handleAddCategory = async () => {
+      if (!newCatName || !newCatPrefix) return;
+      await TournamentService.addCategory(newCatName, newCatPrefix);
+      setNewCatName('');
+      setNewCatPrefix('');
+      loadData();
   };
 
   const handleDeleteCategory = async (id: number) => {
-    if (window.confirm('Tem certeza? Isso não exclui os competidores, mas pode causar confusão na organização.')) {
-      await TournamentService.deleteCategory(id);
-      refreshList();
-    }
+      if (confirm('Excluir categoria?')) {
+          await TournamentService.deleteCategory(id);
+          loadData();
+      }
   };
 
-  // Filter competitors for display
-  const filteredCompetitors = competitors.filter(c => 
-    c.year === year &&
-    (c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.id.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filtered = competitors.filter(c => 
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      c.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-8">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Settings className="w-8 h-8 text-wood-600" />
-            Administração ({year})
+      <div className="max-w-4xl mx-auto p-4 sm:p-8 animate-fade-in">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
+            <Users className="w-8 h-8 text-wood-600" />
+            Gerenciar Participantes ({year})
           </h1>
-          {dbStatus && (
-            <div className={`mt-2 text-sm flex items-center gap-2 ${dbStatus.ok ? 'text-green-600' : 'text-orange-600'}`}>
-              {dbStatus.ok ? (
-                <>
-                  <Wifi className="w-4 h-4" />
-                  Conectado ao Servidor
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-4 h-4" />
-                  Modo Admin Local (Offline)
-                </>
-              )}
-            </div>
-          )}
-        </div>
-        
-        <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
-          <button
-            onClick={() => setActiveTab('participants')}
-            className={`px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'participants' ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
-          >
-            <Users className="w-4 h-4" />
-            Participantes
-          </button>
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'categories' ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
-          >
-            <Tag className="w-4 h-4" />
-            Categorias
-          </button>
-        </div>
-      </div>
 
-      {activeTab === 'participants' && (
-        <div className="space-y-4 animate-fade-in">
-           <div className="flex flex-wrap items-center justify-end gap-3">
-            <div className="flex gap-2">
-                <button 
-                  onClick={() => setIsResetModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors shadow-sm text-sm font-medium"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Limpar
-                </button>
-                <button 
-                  onClick={handleSeed}
-                  disabled={isSeeding}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors shadow-sm text-sm font-medium disabled:opacity-50"
-                >
-                  {isSeeding ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-                  Gerar
-                </button>
-            </div>
-           </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-100">
-              <div className="relative max-w-md">
-                <Search className="absolute left-4 top-3.5 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none"
-                  placeholder={`Pesquisar participantes de ${year}...`}
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 text-gray-600 font-semibold text-sm">
-                  <tr>
-                    <th className="px-6 py-4">Inscrição</th>
-                    <th className="px-6 py-4">Nome</th>
-                    <th className="px-6 py-4">Categoria</th>
-                    <th className="px-6 py-4">Pontos</th>
-                    <th className="px-6 py-4 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredCompetitors.map((comp) => (
-                    <tr key={comp.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-sm text-gray-500">{comp.id}</td>
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{comp.name}</div>
-                        {comp.score !== null && (
-                            <div className="text-xs text-gray-400">Alvos: {formatTargets(comp)}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-700">
-                          {comp.category}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-600">
-                        {comp.score !== null ? comp.score : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => openEditModal(comp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar">
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => handleDelete(comp.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Excluir">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                      </td>
-                    </tr>
+          {/* Categories Management */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-wood-500" />
+                  Categorias
+              </h2>
+              <div className="flex flex-wrap gap-2 mb-4">
+                  {categories.map(cat => (
+                      <div key={cat.id} className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg border border-gray-200 text-sm">
+                          <span className="font-bold text-gray-700">{cat.name} ({cat.prefix})</span>
+                          <button onClick={() => handleDeleteCategory(cat.id!)} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3"/></button>
+                      </div>
                   ))}
-                  {filteredCompetitors.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                        Nenhum participante encontrado para {year}.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'categories' && (
-        <div className="animate-fade-in grid gap-8 md:grid-cols-3">
-          <div className="md:col-span-1">
-             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-               <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                 <Plus className="w-5 h-5 text-wood-600" />
-                 Nova Categoria
-               </h3>
-               <form onSubmit={handleAddCategory} className="space-y-4">
-                 <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                   <input
-                    type="text"
+              </div>
+              <div className="flex gap-2 max-w-md">
+                  <input 
+                    type="text" 
+                    placeholder="Nome (ex: Juvenil)" 
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm"
                     value={newCatName}
-                    onChange={(e) => setNewCatName(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-wood-500 outline-none"
-                    placeholder="Ex: Infantil"
-                    required
-                   />
-                 </div>
-                 <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-1">Prefixo do ID</label>
-                   <input
-                    type="text"
-                    maxLength={1}
+                    onChange={e => setNewCatName(e.target.value)}
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Prefixo (ex: J)" 
+                    className="w-24 px-3 py-2 rounded-lg border border-gray-300 text-sm"
                     value={newCatPrefix}
-                    onChange={(e) => setNewCatPrefix(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-wood-500 outline-none uppercase"
-                    placeholder="Ex: I"
-                    required
-                   />
-                   <p className="text-xs text-gray-500 mt-1">Uma letra única para gerar IDs (Ex: I123).</p>
-                 </div>
-                 <button 
-                  type="submit"
-                  className="w-full bg-wood-600 text-white py-2 rounded-lg font-bold hover:bg-wood-700 transition-colors"
-                 >
-                   Adicionar
-                 </button>
-               </form>
+                    onChange={e => setNewCatPrefix(e.target.value)}
+                  />
+                  <button onClick={handleAddCategory} className="px-4 py-2 bg-wood-600 text-white rounded-lg text-sm font-bold hover:bg-wood-700">Add</button>
+              </div>
+          </div>
+
+          {/* Participants Management */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+             <div className="relative">
+                <Search className="absolute left-3 top-3 text-gray-400 w-5 h-5" />
+                <input 
+                    type="text" 
+                    placeholder="Buscar competidor por nome ou ID..." 
+                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-wood-500 outline-none"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                />
              </div>
           </div>
 
-          <div className="md:col-span-2">
-             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 text-gray-600 font-semibold text-sm">
-                    <tr>
-                      <th className="px-6 py-4">Categoria</th>
-                      <th className="px-6 py-4">Prefixo</th>
-                      <th className="px-6 py-4 text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {categories.map(cat => (
-                      <tr key={cat.id}>
-                        <td className="px-6 py-4 font-medium">{cat.name}</td>
-                        <td className="px-6 py-4 font-mono text-gray-500">{cat.prefix}***</td>
-                        <td className="px-6 py-4 text-right">
-                          <button 
-                            onClick={() => cat.id && handleDeleteCategory(cat.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Excluir Categoria"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-             </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
+              {filtered.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">Nenhum competidor encontrado para {year}.</div>
+              ) : (
+                  <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
+                      {filtered.map(comp => (
+                          <div key={comp.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
+                              <div className="flex-1">
+                                  {editingId === comp.id ? (
+                                      <div className="flex gap-2">
+                                          <input 
+                                              type="text" 
+                                              value={editName}
+                                              onChange={e => setEditName(e.target.value)}
+                                              className="flex-1 px-3 py-1 rounded border border-gray-300"
+                                          />
+                                          <button onClick={handleSaveEdit} className="p-2 bg-green-100 text-green-700 rounded hover:bg-green-200"><Check className="w-4 h-4"/></button>
+                                          <button onClick={() => setEditingId(null)} className="p-2 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"><X className="w-4 h-4"/></button>
+                                      </div>
+                                  ) : (
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-wood-100 flex items-center justify-center font-mono font-bold text-wood-700 text-xs">
+                                            {comp.id}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-gray-800">{comp.name}</div>
+                                            <div className="text-xs text-gray-500 flex gap-2">
+                                                <span>{comp.category}</span>
+                                                <span>•</span>
+                                                <span className={comp.score !== null ? 'text-green-600 font-bold' : 'text-gray-400'}>
+                                                    {comp.score !== null ? `${comp.score} pts` : 'Sem pontuação'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                      </div>
+                                  )}
+                              </div>
+                              <div className="flex items-center gap-2 self-end sm:self-auto">
+                                  <button onClick={() => handleEdit(comp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Nome">
+                                      <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => handleDelete(comp.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
+                                      <Trash2 className="w-4 h-4" />
+                                  </button>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              )}
           </div>
-        </div>
-      )}
-      
-      {/* Edit Modal */}
-      {isEditModalOpen && editingCompetitor && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-all">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform scale-100 transition-all">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Editar Participante ({editingCompetitor.year})</h3>
-                  <p className="text-xs text-gray-500">Atualize os dados cadastrais</p>
-                </div>
-                <button onClick={closeEditModal} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded-full transition-colors">
-                    <X className="w-5 h-5" />
-                </button>
-            </div>
-            <form onSubmit={handleSaveEdit} className="p-6">
-                <div className="mb-4">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Número de Inscrição</label>
-                    <div className="font-mono font-bold text-gray-700 bg-gray-100 px-4 py-3 rounded-xl border border-gray-200 flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-gray-400" />
-                        {editingCompetitor.id}
-                    </div>
-                </div>
-                <div className="mb-8">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Nome Completo</label>
-                    <input 
-                        type="text" 
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none transition-all text-lg text-gray-900"
-                        autoFocus
-                        placeholder="Digite o novo nome"
-                    />
-                </div>
-                <div className="flex gap-3 justify-end">
-                    <button 
-                        type="button" 
-                        onClick={closeEditModal}
-                        className="px-6 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
-                    >
-                        Cancelar
-                    </button>
-                    <button 
-                        type="submit"
-                        className="px-6 py-3 bg-wood-600 text-white font-bold rounded-xl hover:bg-wood-700 transition-colors shadow-lg shadow-wood-600/20 flex items-center gap-2"
-                    >
-                        <Save className="w-4 h-4" />
-                        Salvar Alterações
-                    </button>
-                </div>
-            </form>
+          
+          <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+              <h3 className="text-red-800 font-bold flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-5 h-5" /> Zona de Perigo
+              </h3>
+              <p className="text-sm text-red-600 mb-4">Ações irreversíveis para o banco de dados.</p>
+              <div className="flex flex-wrap gap-4">
+                  <button 
+                    onClick={async () => {
+                        if(confirm('Isso apagará TODOS os competidores (de todos os anos) e partidas. Tem certeza?')) {
+                            await TournamentService.deleteAllCompetitors();
+                            loadData();
+                        }
+                    }}
+                    className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors"
+                  >
+                      Limpar Tudo (Reset Completo)
+                  </button>
+                  <button 
+                    onClick={async () => {
+                        if(confirm('Isso apagará as partidas de mata-mata. Continuar?')) {
+                            await TournamentService.deleteMatches();
+                            alert('Chaves resetadas.');
+                        }
+                    }}
+                    className="px-4 py-2 bg-white border border-orange-200 text-orange-600 rounded-lg text-sm font-bold hover:bg-orange-100 transition-colors"
+                  >
+                      Resetar Mata-mata
+                  </button>
+                  <button 
+                    onClick={async () => {
+                        if(confirm('Isso irá gerar dados fictícios. Continuar?')) {
+                            await TournamentService.seedDatabase();
+                            loadData();
+                        }
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors"
+                  >
+                      Popular Dados (Seed)
+                  </button>
+              </div>
           </div>
-        </div>
-      )}
-
-      {/* Reset Modal */}
-      {isResetModalOpen && (
-         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in border-2 border-red-100">
-                 <div className="p-6 text-center">
-                     <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                         <AlertTriangle className="w-8 h-8 text-red-600" />
-                     </div>
-                     <h3 className="text-xl font-bold text-gray-900 mb-2">Excluir Todos os Dados?</h3>
-                     <p className="text-gray-500 text-sm mb-6">
-                         Isso irá apagar <strong>permanentemente</strong> todos os participantes e pontuações do servidor.
-                     </p>
-                     
-                     <form onSubmit={handleResetData}>
-                         <div className="mb-6 text-left">
-                             <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Confirme sua senha</label>
-                             <input 
-                                 type="password" 
-                                 value={resetPassword}
-                                 onChange={(e) => setResetPassword(e.target.value)}
-                                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
-                                 placeholder="Senha de Admin"
-                                 autoFocus
-                                 required
-                             />
-                         </div>
-                         <div className="flex gap-2">
-                             <button 
-                                 type="button" 
-                                 onClick={() => { setIsResetModalOpen(false); setResetPassword(''); }}
-                                 className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl"
-                             >
-                                 Cancelar
-                             </button>
-                             <button 
-                                 type="submit" 
-                                 className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20"
-                             >
-                                 Sim, Excluir
-                             </button>
-                         </div>
-                     </form>
-                 </div>
-             </div>
-         </div>
-      )}
-    </div>
+      </div>
   );
 };
 
@@ -1227,6 +1210,7 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [qualifiers, setQualifiers] = useState<Competitor[]>([]);
+  const [matches, setMatches] = useState<MatchResult[]>([]);
 
   useEffect(() => {
     const loadCats = async () => {
@@ -1239,13 +1223,14 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
     loadCats();
   }, []);
 
-  const isFeminina = selectedCategory === 'Feminina';
+  const isLivre = selectedCategory === 'Livre';
 
   useEffect(() => {
     const load = async () => {
       if (!selectedCategory) return;
       try {
         const data = await TournamentService.getAll();
+        const matchData = await TournamentService.getMatches();
         
         // Filter by Category AND Year Passed by Prop
         const filtered = data.filter(c => c.category === selectedCategory && c.year === year);
@@ -1254,57 +1239,76 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
         const sorted = sortCompetitors(filtered);
         
         // Define o limite com base na categoria
-        const limit = isFeminina ? 4 : 16;
+        const limit = isLivre ? 16 : 4;
         
         setQualifiers(sorted.slice(0, limit));
+        setMatches(matchData.filter(m => m.id.startsWith(`${selectedCategory}-${year}`)));
       } catch(e) { console.error(e); }
     };
     load();
-  }, [selectedCategory, isFeminina, year]);
+    // Poll for updates in bracket
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
 
-  // Standard seeding logic for 16 players
-  // 1vs16, 8vs9, 4vs13, 5vs12, 2vs15, 7vs10, 3vs14, 6vs11
-  const pairings = [
-    { p1: 0, p2: 15 },
-    { p1: 7, p2: 8 },
-    { p1: 3, p2: 12 },
-    { p1: 4, p2: 11 },
-    { p1: 1, p2: 14 },
-    { p1: 6, p2: 9 },
-    { p1: 2, p2: 13 },
-    { p1: 5, p2: 10 }
+  }, [selectedCategory, isLivre, year]);
+
+  // Helper to find match winner for display
+  const getWinner = (phase: string, idx: number) => {
+      const m = matches.find(m => m.id === `${selectedCategory}-${year}-${phase}-${idx}`);
+      if (!m || !m.winnerId) return undefined;
+      // Find comp in current loaded list (or fetch all if needed, assuming all are in qualifiers/all list)
+      // Actually qualifiers only has top 16, but winner must be one of them.
+      return qualifiers.find(c => c.id === m.winnerId);
+  };
+  
+  const getMatchScore = (phase: string, idx: number, pId: string) => {
+       const m = matches.find(m => m.id === `${selectedCategory}-${year}-${phase}-${idx}`);
+       if (!m) return undefined;
+       if (m.p1Id === pId) return m.score1;
+       if (m.p2Id === pId) return m.score2;
+       return undefined;
+  };
+
+  // Seeding logic
+  const pairings16 = [
+    { p1: 0, p2: 15 }, { p1: 7, p2: 8 }, { p1: 3, p2: 12 }, { p1: 4, p2: 11 },
+    { p1: 1, p2: 14 }, { p1: 6, p2: 9 }, { p1: 2, p2: 13 }, { p1: 5, p2: 10 }
   ];
 
-  // Seeding logic for 4 players (Feminina)
-  // 1vs4, 2vs3
-  const pairingsSmall = [
-      { p1: 0, p2: 3 },
-      { p1: 1, p2: 2 }
+  const pairingsSF_Small = [
+      { p1: 0, p2: 3 }, { p1: 1, p2: 2 }
   ];
 
-  const MatchBox = ({ p1, p2 }: { p1?: Competitor, p2?: Competitor }) => (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm w-full mb-4 overflow-hidden text-xs sm:text-sm">
-      <div className={`p-2 flex justify-between items-center ${p1 ? 'bg-gray-50' : 'bg-gray-100'}`}>
-        <span className={`font-semibold truncate ${p1 ? 'text-gray-800' : 'text-gray-400'}`}>
-          {p1 ? `#${qualifiers.indexOf(p1) + 1} ${p1.name}` : 'A definir'}
+  const MatchBox = ({ 
+      p1, p2, phase, idx 
+  }: { 
+      p1?: Competitor, p2?: Competitor, phase: string, idx: number 
+  }) => {
+    const s1 = p1 ? getMatchScore(phase, idx, p1.id) : undefined;
+    const s2 = p2 ? getMatchScore(phase, idx, p2.id) : undefined;
+    
+    // Determine winner style
+    const w1 = s1 !== undefined && s2 !== undefined && s1 > s2;
+    const w2 = s1 !== undefined && s2 !== undefined && s2 > s1;
+
+    return (
+    <div className="bg-white border border-gray-300 rounded-lg shadow-sm w-full mb-4 overflow-hidden text-xs sm:text-sm relative z-10">
+      <div className={`p-2 flex justify-between items-center ${w1 ? 'bg-green-50' : 'bg-gray-50'}`}>
+        <span className={`font-semibold truncate w-24 sm:w-32 ${p1 ? 'text-gray-900' : 'text-gray-400'}`}>
+          {p1 ? `#${qualifiers.indexOf(p1) + 1} ${p1.name}` : '...'}
         </span>
-        <div className="flex flex-col items-end">
-            <span className="text-gray-500 font-mono text-xs">{p1?.score ?? '-'}</span>
-            {p1?.score && <span className="text-[10px] text-gray-400">Alvos: {formatTargets(p1)}</span>}
-        </div>
+        <span className="font-bold text-gray-700">{s1 !== undefined ? s1 : '-'}</span>
       </div>
       <div className="h-px bg-gray-200"></div>
-      <div className={`p-2 flex justify-between items-center ${p2 ? 'bg-gray-50' : 'bg-gray-100'}`}>
-        <span className={`font-semibold truncate ${p2 ? 'text-gray-800' : 'text-gray-400'}`}>
-           {p2 ? `#${qualifiers.indexOf(p2) + 1} ${p2.name}` : 'A definir'}
+      <div className={`p-2 flex justify-between items-center ${w2 ? 'bg-green-50' : 'bg-gray-50'}`}>
+        <span className={`font-semibold truncate w-24 sm:w-32 ${p2 ? 'text-gray-900' : 'text-gray-400'}`}>
+           {p2 ? `#${qualifiers.indexOf(p2) + 1} ${p2.name}` : '...'}
         </span>
-        <div className="flex flex-col items-end">
-            <span className="text-gray-500 font-mono text-xs">{p2?.score ?? '-'}</span>
-            {p2?.score && <span className="text-[10px] text-gray-400">Alvos: {formatTargets(p2)}</span>}
-        </div>
+        <span className="font-bold text-gray-700">{s2 !== undefined ? s2 : '-'}</span>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-4 overflow-x-auto">
@@ -1315,8 +1319,6 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
         </h1>
         
         <div className="flex flex-wrap gap-4 items-center">
-            {/* Year is now handled globally, removed local selector */}
-
             <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto max-w-full">
             {categories.map(cat => (
                 <button
@@ -1331,91 +1333,103 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
         </div>
       </div>
 
-      <div className="min-w-[800px] flex justify-between gap-4 py-8">
+      <div className="min-w-[1000px] flex justify-between gap-0 py-8 px-4">
         
-        {!isFeminina ? (
+        {isLivre ? (
           <>
             {/* Round of 16 */}
-            <div className="flex-1 flex flex-col justify-around">
-               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Oitavas de Final ({year})</h3>
-               {pairings.map((pair, idx) => (
-                 <div key={idx} className="relative">
-                   <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
-                   {/* Connector Right */}
-                   <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${idx % 2 === 0 ? 'h-[4.5rem] border-r-2 translate-y-0' : 'h-[4.5rem] border-r-2 -translate-y-[4.5rem]'}`}></div>
+            <div className="flex-1 flex flex-col justify-around pr-8 relative">
+               <h3 className="text-center font-bold text-gray-500 mb-6 uppercase tracking-wider text-xs bg-gray-100 py-1 rounded">Oitavas</h3>
+               {pairings16.map((pair, idx) => (
+                 <div key={idx} className="relative flex items-center">
+                   <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} phase="R16" idx={idx} />
+                   {/* Connector to QF */}
+                   <div className={`absolute -right-8 top-1/2 w-8 border-t-2 border-gray-300 ${idx % 2 === 0 ? 'h-[4.5rem] border-r-2 translate-y-[2.25rem]' : 'h-[4.5rem] border-r-2 -translate-y-[2.25rem] border-t-0 border-b-2'}`}></div>
                  </div>
                ))}
             </div>
 
             {/* Quarter Finals */}
-            <div className="flex-1 flex flex-col justify-around pt-8 pb-8">
-              <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Quartas de Final</h3>
+            <div className="flex-1 flex flex-col justify-around px-4 relative">
+              <h3 className="text-center font-bold text-gray-500 mb-6 uppercase tracking-wider text-xs bg-gray-100 py-1 rounded">Quartas</h3>
               {[...Array(4)].map((_, i) => (
-                 <div key={i} className="relative">
-                    <MatchBox />
-                    {/* Connector Right */}
-                    <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${i % 2 === 0 ? 'h-[9rem] border-r-2 translate-y-0' : 'h-[9rem] border-r-2 -translate-y-[9rem]'}`}></div>
+                 <div key={i} className="relative flex items-center">
+                    {/* QF Input comes from Previous Winner */}
+                    <MatchBox 
+                        p1={getWinner('R16', i*2)} 
+                        p2={getWinner('R16', i*2 + 1)} 
+                        phase="QF" idx={i} 
+                    />
+                    {/* Connector to SF */}
+                    <div className={`absolute -right-8 top-1/2 w-8 border-t-2 border-gray-300 ${i % 2 === 0 ? 'h-[9rem] border-r-2 translate-y-[4.5rem]' : 'h-[9rem] border-r-2 -translate-y-[4.5rem] border-t-0 border-b-2'}`}></div>
                  </div>
               ))}
             </div>
 
-            {/* Semi Finals (Empty for Large Bracket) */}
-            <div className="flex-1 flex flex-col justify-around pt-24 pb-24">
-              <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal</h3>
+            {/* Semi Finals */}
+            <div className="flex-1 flex flex-col justify-around px-4 relative">
+              <h3 className="text-center font-bold text-gray-500 mb-6 uppercase tracking-wider text-xs bg-gray-100 py-1 rounded">Semifinal</h3>
               {[...Array(2)].map((_, i) => (
-                <div key={i} className="relative">
-                   <MatchBox />
-                   <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${i % 2 === 0 ? 'h-[18rem] border-r-2 translate-y-0' : 'h-[18rem] border-r-2 -translate-y-[18rem]'}`}></div>
+                <div key={i} className="relative flex items-center">
+                   <MatchBox 
+                        p1={getWinner('QF', i*2)} 
+                        p2={getWinner('QF', i*2 + 1)} 
+                        phase="SF" idx={i}
+                    />
+                   <div className={`absolute -right-8 top-1/2 w-8 border-t-2 border-gray-300 ${i % 2 === 0 ? 'h-[18rem] border-r-2 translate-y-[9rem]' : 'h-[18rem] border-r-2 -translate-y-[9rem] border-t-0 border-b-2'}`}></div>
                 </div>
               ))}
             </div>
 
-            {/* Final (Empty for Large Bracket) */}
-            <div className="flex-1 flex flex-col justify-around pt-48 pb-48">
-              <h3 className="text-center font-bold text-wood-600 mb-4 uppercase tracking-wider text-xs">Final</h3>
-              <div className="relative">
-                 <MatchBox />
-                 <div className="absolute -left-4 top-1/2 w-4 border-t-2 border-gray-300"></div>
+            {/* Final */}
+            <div className="flex-1 flex flex-col justify-around pl-8 relative">
+              <h3 className="text-center font-bold text-wood-600 mb-6 uppercase tracking-wider text-xs bg-wood-100 py-1 rounded">Final</h3>
+              <div className="relative flex items-center">
+                 <div className="absolute -left-8 top-1/2 w-8 border-t-2 border-gray-300"></div>
+                 <MatchBox 
+                    p1={getWinner('SF', 0)} 
+                    p2={getWinner('SF', 1)} 
+                    phase="F" idx={0}
+                 />
               </div>
             </div>
           </>
         ) : (
           <>
             {/* Small Bracket Layout (Top 4) */}
-            <div className="flex-1 flex items-center justify-center">
-                 <div className="text-center text-gray-400 p-8 border-2 border-dashed border-gray-200 rounded-xl">
-                    <p>Fase de Classificação</p>
+            <div className="flex-1 flex items-center justify-center p-8">
+                 <div className="text-center text-gray-400 p-8 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
+                    <Swords className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                    <p className="font-bold">Fase de Classificação</p>
                     <p className="text-xs mt-2">Top 4 avançam direto</p>
                  </div>
             </div>
 
-            <div className="flex-1 flex flex-col justify-around pt-12 pb-12">
-               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal ({year})</h3>
-               {pairingsSmall.map((pair, idx) => (
-                 <div key={idx} className="relative">
-                   <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
+            <div className="flex-1 flex flex-col justify-around px-8 relative">
+               <h3 className="text-center font-bold text-gray-500 mb-6 uppercase tracking-wider text-xs bg-gray-100 py-1 rounded">Semifinal ({year})</h3>
+               {pairingsSF_Small.map((pair, idx) => (
+                 <div key={idx} className="relative flex items-center">
+                   <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} phase="SF" idx={idx} />
                    {/* Connector Right */}
-                   <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${idx % 2 === 0 ? 'h-[12rem] border-r-2 translate-y-0' : 'h-[12rem] border-r-2 -translate-y-[12rem]'}`}></div>
+                   <div className={`absolute -right-8 top-1/2 w-8 border-t-2 border-gray-300 ${idx % 2 === 0 ? 'h-[12rem] border-r-2 translate-y-[6rem]' : 'h-[12rem] border-r-2 -translate-y-[6rem] border-t-0 border-b-2'}`}></div>
                  </div>
                ))}
             </div>
 
-             <div className="flex-1 flex flex-col justify-around pt-32 pb-32">
-              <h3 className="text-center font-bold text-wood-600 mb-4 uppercase tracking-wider text-xs">Final</h3>
-              <div className="relative">
-                 <MatchBox />
-                 <div className="absolute -left-4 top-1/2 w-4 border-t-2 border-gray-300"></div>
+             <div className="flex-1 flex flex-col justify-around pl-8 relative">
+              <h3 className="text-center font-bold text-wood-600 mb-6 uppercase tracking-wider text-xs bg-wood-100 py-1 rounded">Final</h3>
+              <div className="relative flex items-center">
+                 <div className="absolute -left-8 top-1/2 w-8 border-t-2 border-gray-300"></div>
+                 <MatchBox 
+                    p1={getWinner('SF', 0)} 
+                    p2={getWinner('SF', 1)} 
+                    phase="F" idx={0}
+                 />
               </div>
             </div>
           </>
         )}
       </div>
-      
-      <p className="text-center text-gray-400 mt-8 text-sm">
-        {isFeminina 
-          ? "* Na Categoria Feminina, apenas as 4 melhores avançam para a fase Semifinal." 
-          : "* A chave é montada automaticamente com base nos 16 melhores colocados do Ranking deste ano."}
-      </p>
     </div>
   );
 };

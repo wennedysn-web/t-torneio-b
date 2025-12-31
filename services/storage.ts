@@ -11,8 +11,20 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const LS_KEYS = {
   CATEGORIES: 'baladeira_categories_backup',
   COMPETITORS: 'baladeira_competitors_backup',
-  AUTH_USER: 'baladeira_auth_user_backup'
+  AUTH_USER: 'baladeira_auth_user_backup',
+  MATCHES: 'baladeira_matches_backup' // Nova chave para partidas
 };
+
+// Interface para Partida
+export interface MatchResult {
+  id: string; // ex: "Livre-2024-R16-1" (Categoria-Ano-Fase-Indice)
+  p1Id: string;
+  p2Id: string;
+  score1: number;
+  score2: number;
+  winnerId: string | null;
+  timestamp: number;
+}
 
 // Dados para geração aleatória
 const FIRST_NAMES = [
@@ -322,6 +334,31 @@ export const TournamentService = {
     return await TournamentService.updateScore(id, newTargets);
   },
 
+  // --- MATCHES (Mata-mata) ---
+  saveMatch: async (match: MatchResult): Promise<boolean> => {
+    // 1. Local
+    const cached = JSON.parse(localStorage.getItem(LS_KEYS.MATCHES) || '[]');
+    // Remove se já existir (update)
+    const filtered = cached.filter((m: MatchResult) => m.id !== match.id);
+    localStorage.setItem(LS_KEYS.MATCHES, JSON.stringify([...filtered, match]));
+
+    if (isOfflineMode()) return true;
+
+    // 2. Remoto (Tentativa simplificada, armazenando em tabela se existisse ou localStorage backup)
+    // Como não temos tabela 'matches' no setup original, vamos assumir persistencia local robusta
+    // ou usar uma coluna JSON em competitors se fosse crítico, mas aqui usaremos local first.
+    return true; 
+  },
+
+  getMatches: async (): Promise<MatchResult[]> => {
+     const cached = localStorage.getItem(LS_KEYS.MATCHES);
+     return cached ? JSON.parse(cached) : [];
+  },
+
+  deleteMatches: async (): Promise<void> => {
+      localStorage.removeItem(LS_KEYS.MATCHES);
+  },
+
   updateName: async (id: string, newName: string): Promise<boolean> => {
     // 1. Local
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
@@ -365,6 +402,7 @@ export const TournamentService = {
       try {
           // 1. Local
           localStorage.setItem(LS_KEYS.COMPETITORS, '[]');
+          localStorage.removeItem(LS_KEYS.MATCHES);
 
           if (isOfflineMode()) return true;
 
