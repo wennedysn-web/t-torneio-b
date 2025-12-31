@@ -14,6 +14,7 @@ export interface Competitor {
   score: number | null; // null represents not yet played
   targetsHit: number[]; // Array of points from hit targets
   createdAt: number;
+  year: number; // Novo campo para histórico anual
 }
 
 export interface TargetConfig {

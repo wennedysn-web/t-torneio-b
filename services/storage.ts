@@ -206,7 +206,9 @@ export const TournamentService = {
         category: row.category,
         score: row.score,
         targetsHit: row.targets_hit || [],
-        createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now()
+        createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+        // Se a coluna year não existir ou for null, tenta extrair do created_at ou usa o ano atual
+        year: row.year || (row.created_at ? new Date(row.created_at).getFullYear() : new Date().getFullYear())
       }));
 
       // Atualiza Cache
@@ -225,6 +227,7 @@ export const TournamentService = {
       const cats = await TournamentService.getCategories();
       const catDef = cats.find(c => c.name === categoryName);
       const prefix = catDef ? catDef.prefix : 'X';
+      const currentYear = new Date().getFullYear();
 
       // Gerar ID
       const num = Math.floor(Math.random() * 900) + 100;
@@ -236,14 +239,19 @@ export const TournamentService = {
         category: categoryName,
         score: null,
         targetsHit: [],
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        year: currentYear
       };
 
       // 1. Salvar Localmente
       const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
-      const existingCount = cached.filter((c: Competitor) => c.name.toLowerCase() === name.trim().toLowerCase()).length;
+      const existingCount = cached.filter((c: Competitor) => 
+        c.name.toLowerCase() === name.trim().toLowerCase() && 
+        c.year === currentYear // Limite de 3 por ANO
+      ).length;
+      
       if (existingCount >= 3) {
-        return { success: false, message: 'Limite de 3 inscrições atingido (Verificação Local).' };
+        return { success: false, message: 'Limite de 3 inscrições por pessoa atingido neste ano.' };
       }
       localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify([...cached, newCompetitor]));
 
@@ -259,7 +267,8 @@ export const TournamentService = {
           category: categoryName,
           score: null,
           targets_hit: [],
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          year: currentYear
         });
         if (error) throw error;
       } catch (remoteError) {
@@ -366,6 +375,7 @@ export const TournamentService = {
       for (let i = 0; i < conf.count; i++) targetPool.push(conf.points);
     });
     const shuffle = (array: any[]) => array.sort(() => Math.random() - 0.5);
+    const currentYear = new Date().getFullYear();
 
     for (const cat of cats) {
         for (let i = 0; i < 5; i++) {
@@ -381,7 +391,8 @@ export const TournamentService = {
                 category: cat.name,
                 score: hits.reduce((a:number, b:number) => a+b, 0),
                 targetsHit: hits,
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                year: currentYear
             });
         }
     }
@@ -398,7 +409,8 @@ export const TournamentService = {
             category: c.category,
             score: c.score,
             targets_hit: c.targetsHit,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            year: c.year
         }));
         await supabase.from('competitors').insert(payload);
     } catch (e) { console.warn('Seed salvo apenas localmente'); }

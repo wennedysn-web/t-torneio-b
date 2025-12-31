@@ -3,7 +3,7 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -55,6 +55,24 @@ const sortCompetitors = (competitors: Competitor[]) => {
     // 3. Fallback: Creation Date (First to register)
     return a.createdAt - b.createdAt; 
   });
+};
+
+const YearSelector = ({ years, selectedYear, onChange }: { years: number[], selectedYear: number, onChange: (y: number) => void }) => {
+  if (years.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+      <Calendar className="w-4 h-4 text-wood-600" />
+      <select 
+        value={selectedYear}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="bg-transparent font-bold text-gray-700 outline-none text-sm cursor-pointer"
+      >
+        {years.map(y => (
+          <option key={y} value={y}>{y}</option>
+        ))}
+      </select>
+    </div>
+  );
 };
 
 // --- COMPONENTS ---
@@ -159,6 +177,8 @@ const LeaderboardPage: React.FC = () => {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
 
   useEffect(() => {
     const load = async () => {
@@ -167,7 +187,16 @@ const LeaderboardPage: React.FC = () => {
         setCategories(cats);
 
         const data = await TournamentService.getAll();
-        setCompetitors(data); // Sorting happens in CategorySection for display
+        setCompetitors(data); 
+
+        // Extract years
+        const years = Array.from(new Set(data.map(c => c.year))).sort((a, b) => b - a);
+        if (years.length > 0) setAvailableYears(years);
+        // Ensure current selected year is valid, else default to latest
+        if (!years.includes(selectedYear) && years.length > 0) {
+            setSelectedYear(years[0]);
+        }
+
         setError(null);
       } catch (e: any) {
         console.error("Erro no Leaderboard:", e);
@@ -178,6 +207,9 @@ const LeaderboardPage: React.FC = () => {
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Filter by year
+  const displayedCompetitors = competitors.filter(c => c.year === selectedYear);
 
   // Helper to generate a consistent color based on index
   const getColors = (index: number) => {
@@ -193,10 +225,14 @@ const LeaderboardPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Classificação Geral</h1>
-        <p className="text-gray-500">Torneio de Baladeira - Acompanhe os resultados em tempo real</p>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <div className="text-center md:text-left">
+            <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Classificação Geral</h1>
+            <p className="text-gray-500">Torneio de Baladeira - Resultados {selectedYear}</p>
+        </div>
+        <YearSelector years={availableYears} selectedYear={selectedYear} onChange={setSelectedYear} />
       </div>
+
       <div className={`grid gap-6 ${categories.length === 1 ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-2'}`}>
         {categories.map((cat, idx) => {
           const colors = getColors(idx);
@@ -207,7 +243,7 @@ const LeaderboardPage: React.FC = () => {
               category={cat.name}
               colorClass={colors.bg}
               iconColor={colors.icon}
-              competitors={competitors}
+              competitors={displayedCompetitors}
             />
           );
         })}
@@ -377,7 +413,7 @@ const RegistrationPage: React.FC = () => {
     <div className="max-w-2xl mx-auto p-4 sm:p-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
         <BadgePlus className="w-8 h-8 text-wood-600" />
-        Nova Inscrição
+        Nova Inscrição ({new Date().getFullYear()})
       </h1>
 
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8 mb-8">
@@ -400,7 +436,7 @@ const RegistrationPage: React.FC = () => {
               required
               disabled={isSubmitting}
             />
-            <p className="text-xs text-gray-500 mt-2">Permitido até 3 inscrições por nome.</p>
+            <p className="text-xs text-gray-500 mt-2">Permitido até 3 inscrições por nome neste ano.</p>
           </div>
 
           <div>
@@ -447,7 +483,7 @@ const RegistrationPage: React.FC = () => {
           <p className="text-green-700 mb-6">O participante foi cadastrado com sucesso.</p>
           
           <div className="bg-white p-6 rounded-xl border border-green-100 inline-block w-full max-w-sm">
-            <div className="text-sm text-gray-500 mb-1">Número de Inscrição</div>
+            <div className="text-sm text-gray-500 mb-1">Número de Inscrição ({lastRegistered.year})</div>
             <div className="text-4xl font-mono font-bold text-gray-900 tracking-wider mb-2">
               {lastRegistered.id}
             </div>
@@ -466,12 +502,14 @@ const ScoringPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const currentYear = new Date().getFullYear();
 
   // Reload competitors when searching or after update
   const refreshList = async () => {
     try {
       const data = await TournamentService.getAll();
-      setCompetitors(data);
+      // Filter for CURRENT YEAR only for scoring (usually)
+      setCompetitors(data.filter(c => c.year === currentYear));
     } catch (e) { console.error(e); }
   };
 
@@ -508,7 +546,7 @@ const ScoringPage: React.FC = () => {
     <div className="max-w-4xl mx-auto p-4 sm:p-8">
        <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
         <Medal className="w-8 h-8 text-wood-600" />
-        Lançar Pontuação
+        Lançar Pontuação ({currentYear})
       </h1>
 
       {/* Search Section */}
@@ -528,7 +566,7 @@ const ScoringPage: React.FC = () => {
           {searchTerm && (
             <div className="mt-4 space-y-2">
               {filteredCompetitors.length === 0 ? (
-                <div className="text-center py-4 text-gray-500">Nenhum competidor encontrado.</div>
+                <div className="text-center py-4 text-gray-500">Nenhum competidor encontrado para {currentYear}.</div>
               ) : (
                 filteredCompetitors.map(comp => (
                   <button
@@ -591,6 +629,10 @@ const ManageParticipantsPage: React.FC = () => {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Year Filtering Logic for Management
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
+
   // Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null);
@@ -613,7 +655,11 @@ const ManageParticipantsPage: React.FC = () => {
   const refreshList = async () => {
     try {
       const data = await TournamentService.getAll();
-      setCompetitors(sortCompetitors(data)); // Usando a mesma ordenação do ranking
+      setCompetitors(sortCompetitors(data)); 
+      
+      const years = Array.from(new Set(data.map(c => c.year))).sort((a, b) => b - a);
+      if (years.length > 0) setAvailableYears(years);
+
       const cats = await TournamentService.getCategories();
       setCategories(cats);
     } catch(e) { console.error(e); }
@@ -642,15 +688,16 @@ const ManageParticipantsPage: React.FC = () => {
     e.preventDefault();
     if (!editingCompetitor || !editName.trim()) return;
     
-    // VERIFICAÇÃO DE LIMITE DE INSCRIÇÕES
+    // VERIFICAÇÃO DE LIMITE DE INSCRIÇÕES (No mesmo ano)
     const nameToCheck = editName.trim().toLowerCase();
     const existingCount = competitors.filter(c => 
       c.name.toLowerCase() === nameToCheck && 
-      c.id !== editingCompetitor.id
+      c.id !== editingCompetitor.id &&
+      c.year === editingCompetitor.year
     ).length;
 
     if (existingCount >= 3) {
-      alert(`Erro: Já existem ${existingCount} participantes com o nome "${editName}". O limite é de 3 inscrições por pessoa.`);
+      alert(`Erro: Já existem ${existingCount} participantes com o nome "${editName}" no ano ${editingCompetitor.year}. O limite é de 3 inscrições por pessoa/ano.`);
       return;
     }
 
@@ -668,7 +715,7 @@ const ManageParticipantsPage: React.FC = () => {
       
       const originalList = [...competitors];
       
-      // 1. Atualização Otimista: Remove da UI imediatamente e não recarrega para evitar race conditions
+      // 1. Atualização Otimista
       setCompetitors(current => current.filter(c => c.id !== id));
       
       // 2. Chama o serviço em segundo plano
@@ -683,7 +730,7 @@ const ManageParticipantsPage: React.FC = () => {
   };
 
   const handleSeed = async () => {
-    if (window.confirm('Isso irá gerar competidores aleatórios nas categorias existentes. Deseja continuar?')) {
+    if (window.confirm(`Isso irá gerar competidores aleatórios nas categorias existentes para o ano ${new Date().getFullYear()}. Deseja continuar?`)) {
       setIsSeeding(true);
       try {
         await TournamentService.seedDatabase();
@@ -707,7 +754,6 @@ const ManageParticipantsPage: React.FC = () => {
               alert("Todos os dados foram excluídos.");
               setIsResetModalOpen(false);
               setResetPassword('');
-              // Aqui forçamos o refresh pois deleteAll é uma operação massiva e segura
               setCompetitors([]);
               refreshList();
           } else {
@@ -743,9 +789,11 @@ const ManageParticipantsPage: React.FC = () => {
     }
   };
 
+  // Filter competitors for display
   const filteredCompetitors = competitors.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.id.toLowerCase().includes(searchTerm.toLowerCase())
+    c.year === selectedYear &&
+    (c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    c.id.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -793,22 +841,27 @@ const ManageParticipantsPage: React.FC = () => {
 
       {activeTab === 'participants' && (
         <div className="space-y-4 animate-fade-in">
-           <div className="flex flex-wrap justify-end gap-3">
-            <button 
-              onClick={() => setIsResetModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors shadow-sm text-sm font-medium"
-            >
-              <Trash2 className="w-4 h-4" />
-              Limpar Tudo
-            </button>
-            <button 
-              onClick={handleSeed}
-              disabled={isSeeding}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors shadow-sm text-sm font-medium disabled:opacity-50"
-            >
-              {isSeeding ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-              Gerar Dados de Teste
-            </button>
+           <div className="flex flex-wrap items-center justify-between gap-3">
+            
+            <YearSelector years={availableYears} selectedYear={selectedYear} onChange={setSelectedYear} />
+
+            <div className="flex gap-2">
+                <button 
+                  onClick={() => setIsResetModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors shadow-sm text-sm font-medium"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Limpar
+                </button>
+                <button 
+                  onClick={handleSeed}
+                  disabled={isSeeding}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors shadow-sm text-sm font-medium disabled:opacity-50"
+                >
+                  {isSeeding ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                  Gerar
+                </button>
+            </div>
            </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -820,7 +873,7 @@ const ManageParticipantsPage: React.FC = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none"
-                  placeholder="Pesquisar participantes..."
+                  placeholder={`Pesquisar participantes de ${selectedYear}...`}
                 />
               </div>
             </div>
@@ -869,7 +922,7 @@ const ManageParticipantsPage: React.FC = () => {
                   {filteredCompetitors.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                        Nenhum participante encontrado.
+                        Nenhum participante encontrado para {selectedYear}.
                       </td>
                     </tr>
                   )}
@@ -962,7 +1015,7 @@ const ManageParticipantsPage: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform scale-100 transition-all">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-800">Editar Participante</h3>
+                  <h3 className="text-xl font-bold text-gray-800">Editar Participante ({editingCompetitor.year})</h3>
                   <p className="text-xs text-gray-500">Atualize os dados cadastrais</p>
                 </div>
                 <button onClick={closeEditModal} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded-full transition-colors">
@@ -1019,7 +1072,7 @@ const ManageParticipantsPage: React.FC = () => {
                      </div>
                      <h3 className="text-xl font-bold text-gray-900 mb-2">Excluir Todos os Dados?</h3>
                      <p className="text-gray-500 text-sm mb-6">
-                         Isso irá apagar <strong>permanentemente</strong> todos os participantes e pontuações. Esta ação não pode ser desfeita.
+                         Isso irá apagar <strong>permanentemente</strong> todos os participantes e pontuações do servidor.
                      </p>
                      
                      <form onSubmit={handleResetData}>
@@ -1064,6 +1117,10 @@ const BracketPage: React.FC = () => {
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [qualifiers, setQualifiers] = useState<Competitor[]>([]);
+  
+  // Year Filtering
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
 
   useEffect(() => {
     const loadCats = async () => {
@@ -1083,7 +1140,14 @@ const BracketPage: React.FC = () => {
       if (!selectedCategory) return;
       try {
         const data = await TournamentService.getAll();
-        const filtered = data.filter(c => c.category === selectedCategory);
+        
+        // Setup Years
+        const years = Array.from(new Set(data.map(c => c.year))).sort((a, b) => b - a);
+        if (years.length > 0) setAvailableYears(years);
+
+        // Filter by Category AND Year
+        const filtered = data.filter(c => c.category === selectedCategory && c.year === selectedYear);
+        
         // Use global sort logic (Score > MaxHit > Date)
         const sorted = sortCompetitors(filtered);
         
@@ -1094,7 +1158,7 @@ const BracketPage: React.FC = () => {
       } catch(e) { console.error(e); }
     };
     load();
-  }, [selectedCategory, isFeminina]);
+  }, [selectedCategory, isFeminina, selectedYear]);
 
   // Standard seeding logic for 16 players
   // 1vs16, 8vs9, 4vs13, 5vs12, 2vs15, 7vs10, 3vs14, 6vs11
@@ -1148,16 +1212,20 @@ const BracketPage: React.FC = () => {
           Chaveamento (Mata-mata)
         </h1>
         
-        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto max-w-full">
-           {categories.map(cat => (
-             <button
-               key={cat.id}
-               onClick={() => setSelectedCategory(cat.name)}
-               className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${selectedCategory === cat.name ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
-             >
-               {cat.name}
-             </button>
-           ))}
+        <div className="flex flex-wrap gap-4 items-center">
+            <YearSelector years={availableYears} selectedYear={selectedYear} onChange={setSelectedYear} />
+
+            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto max-w-full">
+            {categories.map(cat => (
+                <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.name)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${selectedCategory === cat.name ? 'bg-wood-100 text-wood-800' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                {cat.name}
+                </button>
+            ))}
+            </div>
         </div>
       </div>
 
@@ -1167,7 +1235,7 @@ const BracketPage: React.FC = () => {
           <>
             {/* Round of 16 */}
             <div className="flex-1 flex flex-col justify-around">
-               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Oitavas de Final</h3>
+               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Oitavas de Final ({selectedYear})</h3>
                {pairings.map((pair, idx) => (
                  <div key={idx} className="relative">
                    <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
@@ -1220,7 +1288,7 @@ const BracketPage: React.FC = () => {
             </div>
 
             <div className="flex-1 flex flex-col justify-around pt-12 pb-12">
-               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal</h3>
+               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal ({selectedYear})</h3>
                {pairingsSmall.map((pair, idx) => (
                  <div key={idx} className="relative">
                    <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
@@ -1244,7 +1312,7 @@ const BracketPage: React.FC = () => {
       <p className="text-center text-gray-400 mt-8 text-sm">
         {isFeminina 
           ? "* Na Categoria Feminina, apenas as 4 melhores avançam para a fase Semifinal." 
-          : "* A chave é montada automaticamente com base nos 16 melhores colocados do Ranking."}
+          : "* A chave é montada automaticamente com base nos 16 melhores colocados do Ranking deste ano."}
       </p>
     </div>
   );
