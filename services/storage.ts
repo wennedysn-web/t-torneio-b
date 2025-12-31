@@ -221,14 +221,13 @@ export const TournamentService = {
     }
   },
 
-  register: async (name: string, categoryName: string): Promise<{ success: boolean; message: string; competitor?: Competitor }> => {
+  register: async (name: string, categoryName: string, year: number): Promise<{ success: boolean; message: string; competitor?: Competitor }> => {
     try {
       // Tenta obter prefixo
       const cats = await TournamentService.getCategories();
       const catDef = cats.find(c => c.name === categoryName);
       const prefix = catDef ? catDef.prefix : 'X';
-      const currentYear = new Date().getFullYear();
-
+      
       // Gerar ID
       const num = Math.floor(Math.random() * 900) + 100;
       const newId = `${prefix}${num}`;
@@ -240,14 +239,14 @@ export const TournamentService = {
         score: null,
         targetsHit: [],
         createdAt: Date.now(),
-        year: currentYear
+        year: year
       };
 
       // 1. Salvar Localmente
       const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
       const existingCount = cached.filter((c: Competitor) => 
         c.name.toLowerCase() === name.trim().toLowerCase() && 
-        c.year === currentYear // Limite de 3 por ANO
+        c.year === year // Limite de 3 por ANO
       ).length;
       
       if (existingCount >= 3) {
@@ -268,7 +267,7 @@ export const TournamentService = {
           score: null,
           targets_hit: [],
           created_at: new Date().toISOString(),
-          year: currentYear
+          year: year
         });
         if (error) throw error;
       } catch (remoteError) {

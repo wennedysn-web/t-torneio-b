@@ -3,7 +3,7 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -55,24 +55,6 @@ const sortCompetitors = (competitors: Competitor[]) => {
     // 3. Fallback: Creation Date (First to register)
     return a.createdAt - b.createdAt; 
   });
-};
-
-const YearSelector = ({ years, selectedYear, onChange }: { years: number[], selectedYear: number, onChange: (y: number) => void }) => {
-  if (years.length <= 1) return null;
-  return (
-    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-      <Calendar className="w-4 h-4 text-wood-600" />
-      <select 
-        value={selectedYear}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="bg-transparent font-bold text-gray-700 outline-none text-sm cursor-pointer"
-      >
-        {years.map(y => (
-          <option key={y} value={y}>{y}</option>
-        ))}
-      </select>
-    </div>
-  );
 };
 
 // --- COMPONENTS ---
@@ -173,12 +155,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({ title, category, colo
 // --- PAGES ---
 
 // 1. Leaderboard Page
-const LeaderboardPage: React.FC = () => {
+const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
 
   useEffect(() => {
     const load = async () => {
@@ -188,14 +168,6 @@ const LeaderboardPage: React.FC = () => {
 
         const data = await TournamentService.getAll();
         setCompetitors(data); 
-
-        // Extract years
-        const years = Array.from(new Set(data.map(c => c.year))).sort((a, b) => b - a);
-        if (years.length > 0) setAvailableYears(years);
-        // Ensure current selected year is valid, else default to latest
-        if (!years.includes(selectedYear) && years.length > 0) {
-            setSelectedYear(years[0]);
-        }
 
         setError(null);
       } catch (e: any) {
@@ -208,8 +180,8 @@ const LeaderboardPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Filter by year
-  const displayedCompetitors = competitors.filter(c => c.year === selectedYear);
+  // Filter by year passed by Prop
+  const displayedCompetitors = competitors.filter(c => c.year === year);
 
   // Helper to generate a consistent color based on index
   const getColors = (index: number) => {
@@ -228,9 +200,8 @@ const LeaderboardPage: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div className="text-center md:text-left">
             <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Classificação Geral</h1>
-            <p className="text-gray-500">Torneio de Baladeira - Resultados {selectedYear}</p>
+            <p className="text-gray-500">Torneio de Baladeira - Resultados {year}</p>
         </div>
-        <YearSelector years={availableYears} selectedYear={selectedYear} onChange={setSelectedYear} />
       </div>
 
       <div className={`grid gap-6 ${categories.length === 1 ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-2'}`}>
@@ -360,7 +331,7 @@ const LoginPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
 };
 
 // 3. Registration Page
-const RegistrationPage: React.FC = () => {
+const RegistrationPage: React.FC<{ year: number }> = ({ year }) => {
   const [name, setName] = useState('');
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [category, setCategory] = useState<string>('');
@@ -392,7 +363,8 @@ const RegistrationPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const result = await TournamentService.register(name, category);
+      // Pass the selected YEAR to the service
+      const result = await TournamentService.register(name, category, year);
       
       if (result.success && result.competitor) {
         setLastRegistered(result.competitor);
@@ -413,7 +385,7 @@ const RegistrationPage: React.FC = () => {
     <div className="max-w-2xl mx-auto p-4 sm:p-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
         <BadgePlus className="w-8 h-8 text-wood-600" />
-        Nova Inscrição ({new Date().getFullYear()})
+        Nova Inscrição ({year})
       </h1>
 
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8 mb-8">
@@ -498,24 +470,23 @@ const RegistrationPage: React.FC = () => {
 };
 
 // 4. Scoring Page
-const ScoringPage: React.FC = () => {
+const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
-  const currentYear = new Date().getFullYear();
 
   // Reload competitors when searching or after update
   const refreshList = async () => {
     try {
       const data = await TournamentService.getAll();
-      // Filter for CURRENT YEAR only for scoring (usually)
-      setCompetitors(data.filter(c => c.year === currentYear));
+      // Filter for Selected YEAR passed by prop
+      setCompetitors(data.filter(c => c.year === year));
     } catch (e) { console.error(e); }
   };
 
   useEffect(() => {
     refreshList();
-  }, []);
+  }, [year]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -546,7 +517,7 @@ const ScoringPage: React.FC = () => {
     <div className="max-w-4xl mx-auto p-4 sm:p-8">
        <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
         <Medal className="w-8 h-8 text-wood-600" />
-        Lançar Pontuação ({currentYear})
+        Lançar Pontuação ({year})
       </h1>
 
       {/* Search Section */}
@@ -566,7 +537,7 @@ const ScoringPage: React.FC = () => {
           {searchTerm && (
             <div className="mt-4 space-y-2">
               {filteredCompetitors.length === 0 ? (
-                <div className="text-center py-4 text-gray-500">Nenhum competidor encontrado para {currentYear}.</div>
+                <div className="text-center py-4 text-gray-500">Nenhum competidor encontrado para {year}.</div>
               ) : (
                 filteredCompetitors.map(comp => (
                   <button
@@ -622,17 +593,13 @@ const ScoringPage: React.FC = () => {
 };
 
 // 5. Manage Participants Page (Includes Categories)
-const ManageParticipantsPage: React.FC = () => {
+const ManageParticipantsPage: React.FC<{ year: number }> = ({ year }) => {
   const [activeTab, setActiveTab] = useState<'participants' | 'categories'>('participants');
 
   // --- Participants Logic ---
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Year Filtering Logic for Management
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
-
   // Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null);
@@ -657,9 +624,6 @@ const ManageParticipantsPage: React.FC = () => {
       const data = await TournamentService.getAll();
       setCompetitors(sortCompetitors(data)); 
       
-      const years = Array.from(new Set(data.map(c => c.year))).sort((a, b) => b - a);
-      if (years.length > 0) setAvailableYears(years);
-
       const cats = await TournamentService.getCategories();
       setCategories(cats);
     } catch(e) { console.error(e); }
@@ -730,7 +694,7 @@ const ManageParticipantsPage: React.FC = () => {
   };
 
   const handleSeed = async () => {
-    if (window.confirm(`Isso irá gerar competidores aleatórios nas categorias existentes para o ano ${new Date().getFullYear()}. Deseja continuar?`)) {
+    if (window.confirm(`Isso irá gerar competidores aleatórios nas categorias existentes para o ano ${year}. Deseja continuar?`)) {
       setIsSeeding(true);
       try {
         await TournamentService.seedDatabase();
@@ -791,7 +755,7 @@ const ManageParticipantsPage: React.FC = () => {
 
   // Filter competitors for display
   const filteredCompetitors = competitors.filter(c => 
-    c.year === selectedYear &&
+    c.year === year &&
     (c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.id.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -802,7 +766,7 @@ const ManageParticipantsPage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <Settings className="w-8 h-8 text-wood-600" />
-            Administração
+            Administração ({year})
           </h1>
           {dbStatus && (
             <div className={`mt-2 text-sm flex items-center gap-2 ${dbStatus.ok ? 'text-green-600' : 'text-orange-600'}`}>
@@ -841,10 +805,7 @@ const ManageParticipantsPage: React.FC = () => {
 
       {activeTab === 'participants' && (
         <div className="space-y-4 animate-fade-in">
-           <div className="flex flex-wrap items-center justify-between gap-3">
-            
-            <YearSelector years={availableYears} selectedYear={selectedYear} onChange={setSelectedYear} />
-
+           <div className="flex flex-wrap items-center justify-end gap-3">
             <div className="flex gap-2">
                 <button 
                   onClick={() => setIsResetModalOpen(true)}
@@ -873,7 +834,7 @@ const ManageParticipantsPage: React.FC = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-wood-500 focus:border-transparent outline-none"
-                  placeholder={`Pesquisar participantes de ${selectedYear}...`}
+                  placeholder={`Pesquisar participantes de ${year}...`}
                 />
               </div>
             </div>
@@ -922,7 +883,7 @@ const ManageParticipantsPage: React.FC = () => {
                   {filteredCompetitors.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                        Nenhum participante encontrado para {selectedYear}.
+                        Nenhum participante encontrado para {year}.
                       </td>
                     </tr>
                   )}
@@ -1113,14 +1074,10 @@ const ManageParticipantsPage: React.FC = () => {
 };
 
 // 6. Bracket Page
-const BracketPage: React.FC = () => {
+const BracketPage: React.FC<{ year: number }> = ({ year }) => {
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [qualifiers, setQualifiers] = useState<Competitor[]>([]);
-  
-  // Year Filtering
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [availableYears, setAvailableYears] = useState<number[]>([new Date().getFullYear()]);
 
   useEffect(() => {
     const loadCats = async () => {
@@ -1141,12 +1098,8 @@ const BracketPage: React.FC = () => {
       try {
         const data = await TournamentService.getAll();
         
-        // Setup Years
-        const years = Array.from(new Set(data.map(c => c.year))).sort((a, b) => b - a);
-        if (years.length > 0) setAvailableYears(years);
-
-        // Filter by Category AND Year
-        const filtered = data.filter(c => c.category === selectedCategory && c.year === selectedYear);
+        // Filter by Category AND Year Passed by Prop
+        const filtered = data.filter(c => c.category === selectedCategory && c.year === year);
         
         // Use global sort logic (Score > MaxHit > Date)
         const sorted = sortCompetitors(filtered);
@@ -1158,7 +1111,7 @@ const BracketPage: React.FC = () => {
       } catch(e) { console.error(e); }
     };
     load();
-  }, [selectedCategory, isFeminina, selectedYear]);
+  }, [selectedCategory, isFeminina, year]);
 
   // Standard seeding logic for 16 players
   // 1vs16, 8vs9, 4vs13, 5vs12, 2vs15, 7vs10, 3vs14, 6vs11
@@ -1213,7 +1166,7 @@ const BracketPage: React.FC = () => {
         </h1>
         
         <div className="flex flex-wrap gap-4 items-center">
-            <YearSelector years={availableYears} selectedYear={selectedYear} onChange={setSelectedYear} />
+            {/* Year is now handled globally, removed local selector */}
 
             <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 overflow-x-auto max-w-full">
             {categories.map(cat => (
@@ -1235,7 +1188,7 @@ const BracketPage: React.FC = () => {
           <>
             {/* Round of 16 */}
             <div className="flex-1 flex flex-col justify-around">
-               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Oitavas de Final ({selectedYear})</h3>
+               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Oitavas de Final ({year})</h3>
                {pairings.map((pair, idx) => (
                  <div key={idx} className="relative">
                    <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
@@ -1288,7 +1241,7 @@ const BracketPage: React.FC = () => {
             </div>
 
             <div className="flex-1 flex flex-col justify-around pt-12 pb-12">
-               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal ({selectedYear})</h3>
+               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal ({year})</h3>
                {pairingsSmall.map((pair, idx) => (
                  <div key={idx} className="relative">
                    <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
@@ -1318,11 +1271,50 @@ const BracketPage: React.FC = () => {
   );
 };
 
+// --- WELCOME MODAL ---
+
+const WelcomeYearModal: React.FC<{ onSelect: (year: number) => void }> = ({ onSelect }) => {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-wood-900/90 backdrop-blur-sm p-4 animate-fade-in">
+       <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center border-4 border-wood-200 transform scale-100 transition-all">
+          <div className="bg-wood-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+             <Calendar className="w-10 h-10 text-wood-600" />
+          </div>
+          <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Bem-vindo!</h2>
+          <p className="text-gray-500 mb-8">Selecione o ano do torneio para acessar os registros.</p>
+          
+          <div className="grid grid-cols-2 gap-4">
+             <button 
+                onClick={() => onSelect(2024)}
+                className="group relative overflow-hidden rounded-2xl bg-gray-100 hover:bg-wood-600 transition-all duration-300 p-6 text-center border-2 border-transparent hover:border-wood-700 hover:shadow-lg"
+             >
+                <span className="block text-2xl font-bold text-gray-700 group-hover:text-white mb-1">2024</span>
+                <span className="text-xs text-gray-400 group-hover:text-wood-200 flex items-center justify-center gap-1">
+                   Acessar <ArrowRight className="w-3 h-3" />
+                </span>
+             </button>
+
+             <button 
+                onClick={() => onSelect(2025)}
+                className="group relative overflow-hidden rounded-2xl bg-wood-50 hover:bg-wood-600 transition-all duration-300 p-6 text-center border-2 border-wood-200 hover:border-wood-700 hover:shadow-lg"
+             >
+                <span className="block text-2xl font-bold text-wood-800 group-hover:text-white mb-1">2025</span>
+                <span className="text-xs text-wood-600 group-hover:text-wood-200 flex items-center justify-center gap-1">
+                   Acessar <ArrowRight className="w-3 h-3" />
+                </span>
+             </button>
+          </div>
+       </div>
+    </div>
+  );
+};
+
 // --- APP ROOT ---
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState('leaderboard');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [globalYear, setGlobalYear] = useState<number | null>(null);
 
   useEffect(() => {
     // Check initial session (com try/catch implicito do getUser customizado)
@@ -1332,7 +1324,6 @@ const App: React.FC = () => {
 
     // Listen for Supabase auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Se tiver sessão online, usa. Senão, mantém o estado atual (pra não deslogar o admin offline abruptamente)
       if (session) setIsAdmin(true);
     });
 
@@ -1352,26 +1343,32 @@ const App: React.FC = () => {
 
   // Protected Route Logic
   const renderView = () => {
+    // If no year selected, app logic doesn't render (Modal covers it)
+    if (!globalYear) return null;
+
     switch (currentView) {
       case 'leaderboard':
-        return <LeaderboardPage />;
+        return <LeaderboardPage year={globalYear} />;
       case 'bracket':
-        return <BracketPage />; // Public view
+        return <BracketPage year={globalYear} />; // Public view
       case 'login':
         return <LoginPage onSuccess={handleLoginSuccess} />;
       case 'registration':
-        return isAdmin ? <RegistrationPage /> : <LoginPage onSuccess={handleLoginSuccess} />;
+        return isAdmin ? <RegistrationPage year={globalYear} /> : <LoginPage onSuccess={handleLoginSuccess} />;
       case 'scoring':
-        return isAdmin ? <ScoringPage /> : <LoginPage onSuccess={handleLoginSuccess} />;
+        return isAdmin ? <ScoringPage year={globalYear} /> : <LoginPage onSuccess={handleLoginSuccess} />;
       case 'manage':
-        return isAdmin ? <ManageParticipantsPage /> : <LoginPage onSuccess={handleLoginSuccess} />;
+        return isAdmin ? <ManageParticipantsPage year={globalYear} /> : <LoginPage onSuccess={handleLoginSuccess} />;
       default:
-        return <LeaderboardPage />;
+        return <LeaderboardPage year={globalYear} />;
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 pb-20">
+      {/* Show Modal if no year selected */}
+      {!globalYear && <WelcomeYearModal onSelect={setGlobalYear} />}
+
       <Navbar 
         currentView={currentView} 
         onChangeView={setCurrentView} 
