@@ -25,7 +25,7 @@ const isPerfectTie = (a: Competitor, b: Competitor): boolean => {
   return targetsA.every((val, index) => val === targetsB[index]);
 };
 
-// Sort Logic: Total Score -> Highest Individual Hit (Smallest Target) -> Created Date
+// Sort Logic: Total Score -> Deep Target Comparison (Highest to Lowest) -> Created Date
 const sortCompetitors = (competitors: Competitor[]) => {
   return [...competitors].sort((a, b) => {
     const scoreA = a.score ?? -1;
@@ -34,10 +34,22 @@ const sortCompetitors = (competitors: Competitor[]) => {
     // 1. Total Score
     if (scoreA !== scoreB) return scoreB - scoreA;
     
-    // 2. Tie-break: Highest Single Target Hit (Which corresponds to the Smallest Target)
-    const maxA = getHighCard(a);
-    const maxB = getHighCard(b);
-    if (maxA !== maxB) return maxB - maxA;
+    // 2. Deep Tie-break: Compare individual targets from Highest to Lowest
+    // Sort both arrays descending (24, 22, 20...)
+    const hitsA = [...(a.targetsHit || [])].sort((x, y) => y - x);
+    const hitsB = [...(b.targetsHit || [])].sort((x, y) => y - x);
+
+    const len = Math.max(hitsA.length, hitsB.length);
+
+    for (let i = 0; i < len; i++) {
+        const valA = hitsA[i] || 0; // Use 0 if ran out of targets
+        const valB = hitsB[i] || 0;
+
+        if (valA !== valB) {
+            // The one with the higher individual target at this rank wins
+            return valB - valA; 
+        }
+    }
 
     // 3. Fallback: Creation Date (First to register)
     return a.createdAt - b.createdAt; 
@@ -1040,6 +1052,8 @@ const BracketPage: React.FC = () => {
     loadCats();
   }, []);
 
+  const isFeminina = selectedCategory === 'Feminina';
+
   useEffect(() => {
     const load = async () => {
       if (!selectedCategory) return;
@@ -1048,12 +1062,15 @@ const BracketPage: React.FC = () => {
         const filtered = data.filter(c => c.category === selectedCategory);
         // Use global sort logic (Score > MaxHit > Date)
         const sorted = sortCompetitors(filtered);
-        // Take top 16
-        setQualifiers(sorted.slice(0, 16));
+        
+        // Define o limite com base na categoria
+        const limit = isFeminina ? 4 : 16;
+        
+        setQualifiers(sorted.slice(0, limit));
       } catch(e) { console.error(e); }
     };
     load();
-  }, [selectedCategory]);
+  }, [selectedCategory, isFeminina]);
 
   // Standard seeding logic for 16 players
   // 1vs16, 8vs9, 4vs13, 5vs12, 2vs15, 7vs10, 3vs14, 6vs11
@@ -1066,6 +1083,13 @@ const BracketPage: React.FC = () => {
     { p1: 6, p2: 9 },
     { p1: 2, p2: 13 },
     { p1: 5, p2: 10 }
+  ];
+
+  // Seeding logic for 4 players (Feminina)
+  // 1vs4, 2vs3
+  const pairingsSmall = [
+      { p1: 0, p2: 3 },
+      { p1: 1, p2: 2 }
   ];
 
   const MatchBox = ({ p1, p2 }: { p1?: Competitor, p2?: Competitor }) => (
@@ -1114,53 +1138,89 @@ const BracketPage: React.FC = () => {
       </div>
 
       <div className="min-w-[800px] flex justify-between gap-4 py-8">
-        {/* Round of 16 */}
-        <div className="flex-1 flex flex-col justify-around">
-           <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Oitavas de Final</h3>
-           {pairings.map((pair, idx) => (
-             <div key={idx} className="relative">
-               <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
-               {/* Connector Right */}
-               <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${idx % 2 === 0 ? 'h-[4.5rem] border-r-2 translate-y-0' : 'h-[4.5rem] border-r-2 -translate-y-[4.5rem]'}`}></div>
-             </div>
-           ))}
-        </div>
-
-        {/* Quarter Finals */}
-        <div className="flex-1 flex flex-col justify-around pt-8 pb-8">
-          <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Quartas de Final</h3>
-          {[...Array(4)].map((_, i) => (
-             <div key={i} className="relative">
-                <MatchBox />
-                {/* Connector Right */}
-                <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${i % 2 === 0 ? 'h-[9rem] border-r-2 translate-y-0' : 'h-[9rem] border-r-2 -translate-y-[9rem]'}`}></div>
-             </div>
-          ))}
-        </div>
-
-        {/* Semi Finals */}
-        <div className="flex-1 flex flex-col justify-around pt-24 pb-24">
-          <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal</h3>
-          {[...Array(2)].map((_, i) => (
-            <div key={i} className="relative">
-               <MatchBox />
-               <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${i % 2 === 0 ? 'h-[18rem] border-r-2 translate-y-0' : 'h-[18rem] border-r-2 -translate-y-[18rem]'}`}></div>
+        
+        {!isFeminina ? (
+          <>
+            {/* Round of 16 */}
+            <div className="flex-1 flex flex-col justify-around">
+               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Oitavas de Final</h3>
+               {pairings.map((pair, idx) => (
+                 <div key={idx} className="relative">
+                   <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
+                   {/* Connector Right */}
+                   <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${idx % 2 === 0 ? 'h-[4.5rem] border-r-2 translate-y-0' : 'h-[4.5rem] border-r-2 -translate-y-[4.5rem]'}`}></div>
+                 </div>
+               ))}
             </div>
-          ))}
-        </div>
 
-        {/* Final */}
-        <div className="flex-1 flex flex-col justify-around pt-48 pb-48">
-          <h3 className="text-center font-bold text-wood-600 mb-4 uppercase tracking-wider text-xs">Final</h3>
-          <div className="relative">
-             <MatchBox />
-             <div className="absolute -left-4 top-1/2 w-4 border-t-2 border-gray-300"></div>
-          </div>
-        </div>
+            {/* Quarter Finals */}
+            <div className="flex-1 flex flex-col justify-around pt-8 pb-8">
+              <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Quartas de Final</h3>
+              {[...Array(4)].map((_, i) => (
+                 <div key={i} className="relative">
+                    <MatchBox />
+                    {/* Connector Right */}
+                    <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${i % 2 === 0 ? 'h-[9rem] border-r-2 translate-y-0' : 'h-[9rem] border-r-2 -translate-y-[9rem]'}`}></div>
+                 </div>
+              ))}
+            </div>
+
+            {/* Semi Finals (Empty for Large Bracket) */}
+            <div className="flex-1 flex flex-col justify-around pt-24 pb-24">
+              <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal</h3>
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="relative">
+                   <MatchBox />
+                   <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${i % 2 === 0 ? 'h-[18rem] border-r-2 translate-y-0' : 'h-[18rem] border-r-2 -translate-y-[18rem]'}`}></div>
+                </div>
+              ))}
+            </div>
+
+            {/* Final (Empty for Large Bracket) */}
+            <div className="flex-1 flex flex-col justify-around pt-48 pb-48">
+              <h3 className="text-center font-bold text-wood-600 mb-4 uppercase tracking-wider text-xs">Final</h3>
+              <div className="relative">
+                 <MatchBox />
+                 <div className="absolute -left-4 top-1/2 w-4 border-t-2 border-gray-300"></div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Small Bracket Layout (Top 4) */}
+            <div className="flex-1 flex items-center justify-center">
+                 <div className="text-center text-gray-400 p-8 border-2 border-dashed border-gray-200 rounded-xl">
+                    <p>Fase de Classificação</p>
+                    <p className="text-xs mt-2">Top 4 avançam direto</p>
+                 </div>
+            </div>
+
+            <div className="flex-1 flex flex-col justify-around pt-12 pb-12">
+               <h3 className="text-center font-bold text-gray-500 mb-4 uppercase tracking-wider text-xs">Semifinal</h3>
+               {pairingsSmall.map((pair, idx) => (
+                 <div key={idx} className="relative">
+                   <MatchBox p1={qualifiers[pair.p1]} p2={qualifiers[pair.p2]} />
+                   {/* Connector Right */}
+                   <div className={`hidden sm:block absolute right-[-1rem] top-1/2 w-4 border-t-2 border-gray-300 ${idx % 2 === 0 ? 'h-[12rem] border-r-2 translate-y-0' : 'h-[12rem] border-r-2 -translate-y-[12rem]'}`}></div>
+                 </div>
+               ))}
+            </div>
+
+             <div className="flex-1 flex flex-col justify-around pt-32 pb-32">
+              <h3 className="text-center font-bold text-wood-600 mb-4 uppercase tracking-wider text-xs">Final</h3>
+              <div className="relative">
+                 <MatchBox />
+                 <div className="absolute -left-4 top-1/2 w-4 border-t-2 border-gray-300"></div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
       
       <p className="text-center text-gray-400 mt-8 text-sm">
-        * A chave é montada automaticamente com base nos 16 melhores colocados do Ranking.
+        {isFeminina 
+          ? "* Na Categoria Feminina, apenas as 4 melhores avançam para a fase Semifinal." 
+          : "* A chave é montada automaticamente com base nos 16 melhores colocados do Ranking."}
       </p>
     </div>
   );
