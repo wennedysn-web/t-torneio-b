@@ -1,11 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase, MatchResult } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-// Fixed: Added 'Lock' and 'Target' to the import list from lucide-react
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -22,21 +20,31 @@ const isPerfectTie = (a: Competitor, b: Competitor): boolean => {
   return targetsA.every((val, index) => val === targetsB[index]);
 };
 
-const sortCompetitors = (competitors: Competitor[]) => {
-  return [...competitors].sort((a, b) => {
+// Compara dois competidores e retorna < 0 se A for melhor, > 0 se B for melhor
+const compareCompetitors = (a: Competitor, b: Competitor): number => {
     const scoreA = a.score ?? -1;
     const scoreB = b.score ?? -1;
+    
+    // 1. Total Score
     if (scoreA !== scoreB) return scoreB - scoreA;
+    
+    // 2. Deep Tie-break: Alvos individuais (do maior para o menor)
     const hitsA = [...(a.targetsHit || [])].sort((x, y) => y - x);
     const hitsB = [...(b.targetsHit || [])].sort((x, y) => y - x);
     const len = Math.max(hitsA.length, hitsB.length);
+
     for (let i = 0; i < len; i++) {
         const valA = hitsA[i] || 0;
         const valB = hitsB[i] || 0;
         if (valA !== valB) return valB - valA; 
     }
-    return a.createdAt - b.createdAt; 
-  });
+
+    // 3. Ordem de inscrição (mais antigo primeiro)
+    return a.createdAt - b.createdAt;
+};
+
+const sortCompetitors = (competitors: Competitor[]) => {
+  return [...competitors].sort(compareCompetitors);
 };
 
 // --- COMPONENTS ---
@@ -46,7 +54,7 @@ interface CategorySectionProps {
   category: string;
   colorClass: string;
   iconColor: string;
-  competitors: Competitor[];
+  competitors: Competitor[]; // Lista já filtrada com as melhores de cada um
   isWideMode: boolean;
 }
 
@@ -64,6 +72,14 @@ const CategorySection: React.FC<CategorySectionProps> = ({ title, category, colo
                 <span className="text-sm font-medium text-slate-500">({list.length})</span>
             </div>
         </div>
+        {!isWideMode && (
+            <div className="group relative">
+                <Info className="w-4 h-4 text-slate-600 cursor-help" />
+                <div className="absolute right-0 top-6 w-48 bg-slate-800 text-[10px] text-slate-300 p-2 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity border border-slate-700 pointer-events-none z-50">
+                    Apenas a melhor pontuação de cada participante é exibida no ranking.
+                </div>
+            </div>
+        )}
       </div>
       <div className="overflow-y-auto flex-1 p-4 space-y-3">
         {sortedList.length === 0 ? (
@@ -146,7 +162,31 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const displayedCompetitors = competitors.filter(c => c.year === year);
+  // LÓGICA DE FILTRO: Apenas a melhor pontuação de cada participante (por nome)
+  const filterBestScores = (comps: Competitor[]) => {
+      const bestScoresMap = new Map<string, Competitor>();
+
+      comps.forEach(c => {
+          // Usamos nome em minúsculo como chave para agrupar (mesma pessoa)
+          const key = `${c.name.toLowerCase()}-${c.category}`;
+          const currentBest = bestScoresMap.get(key);
+
+          if (!currentBest) {
+              bestScoresMap.set(key, c);
+          } else {
+              // Se a nova inscrição for melhor que a atual, substitui
+              if (compareCompetitors(c, currentBest) < 0) {
+                  bestScoresMap.set(key, c);
+              }
+          }
+      });
+
+      return Array.from(bestScoresMap.values());
+  };
+
+  const currentYearComps = competitors.filter(c => c.year === year);
+  const displayedCompetitors = filterBestScores(currentYearComps);
+
   const getColors = (idx: number) => {
     const iconColors = ['text-blue-500', 'text-pink-500', 'text-purple-500', 'text-emerald-500', 'text-amber-500'];
     return { bg: 'bg-slate-800', icon: iconColors[idx % iconColors.length] };
@@ -163,13 +203,19 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
             </p>
         </div>
         
-        <button 
-          onClick={() => setIsWideMode(!isWideMode)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl shadow-xl hover:bg-slate-800 text-slate-300 transition-all active:scale-95 group"
-        >
-            {isWideMode ? <Layout className="w-5 h-5 group-hover:text-wood-500" /> : <Monitor className="w-5 h-5 group-hover:text-wood-500" />}
-            <span className="font-bold text-sm">{isWideMode ? "MODO NORMAL" : "MODO PROJEÇÃO"}</span>
-        </button>
+        <div className="flex items-center gap-3">
+            <div className="hidden sm:flex bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-wood-500" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Melhor de 3 Atos</span>
+            </div>
+            <button 
+              onClick={() => setIsWideMode(!isWideMode)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl shadow-xl hover:bg-slate-800 text-slate-300 transition-all active:scale-95 group"
+            >
+                {isWideMode ? <Layout className="w-5 h-5 group-hover:text-wood-500" /> : <Monitor className="w-5 h-5 group-hover:text-wood-500" />}
+                <span className="font-bold text-sm">{isWideMode ? "MODO NORMAL" : "MODO PROJEÇÃO"}</span>
+            </button>
+        </div>
       </div>
 
       <div 
@@ -308,7 +354,7 @@ const RegistrationPage: React.FC<{ year: number }> = ({ year }) => {
   );
 };
 
-// --- RESTO DO APP SEGUE PADRÃO DARK ---
+// --- BRACKET PAGE ---
 
 const BracketPage: React.FC<{ year: number }> = ({ year }) => {
     const [categories, setCategories] = useState<CategoryDef[]>([]);
@@ -329,7 +375,16 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
         const data = await TournamentService.getAll();
         const matchData = await TournamentService.getMatches();
         const filtered = data.filter(c => c.category === selectedCategory && c.year === year);
-        const sorted = sortCompetitors(filtered);
+        
+        const bestScoresMap = new Map<string, Competitor>();
+        filtered.forEach(c => {
+            const key = c.name.toLowerCase();
+            const currentBest = bestScoresMap.get(key);
+            if (!currentBest || compareCompetitors(c, currentBest) < 0) bestScoresMap.set(key, c);
+        });
+        const finalPool = Array.from(bestScoresMap.values());
+        
+        const sorted = sortCompetitors(finalPool);
         setQualifiers(sorted.slice(0, selectedCategory === 'Livre' ? 16 : 4));
         setMatches(matchData.filter(m => m.id.startsWith(`${selectedCategory}-${year}`)));
       };
@@ -385,8 +440,6 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
         </div>
         <div className="overflow-x-auto pb-10">
             <div className="min-w-[1000px] flex gap-10">
-                {/* Aqui vai o desenho da árvore de chaves similar ao original mas com cores Dark */}
-                {/* ... omitido para brevidade mas adaptado visualmente para slate-900 ... */}
                 <div className="text-slate-500 p-20 text-center w-full bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-800">
                     Visualização das chaves otimizada para tema escuro.
                 </div>
@@ -410,6 +463,14 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
         searchTerm && (c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.id.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
+    // Função centralizada para lidar com o sucesso do salvamento
+    const handleScoreSuccess = async () => {
+        const data = await TournamentService.getAll();
+        setCompetitors(data.filter(c => c.year === year));
+        setSelected(null); // Retorna automaticamente para a pesquisa
+        setSearchTerm(''); // Limpa o termo para facilitar o próximo uso
+    };
+
     return (
         <div className="max-w-4xl mx-auto p-4 sm:p-8">
             <h1 className="text-3xl font-black text-slate-100 mb-8 flex items-center gap-4">
@@ -421,7 +482,7 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
             </div>
 
             {!selected ? (
-                <div className="relative">
+                <div className="relative animate-in fade-in duration-300">
                     <Search className="absolute left-5 top-5 text-slate-500" />
                     <input 
                         type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
@@ -433,10 +494,20 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
                             {filtered.map(c => (
                                 <button key={c.id} onClick={() => setSelected(c)} className="w-full p-5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-2xl text-left flex justify-between items-center transition-all">
                                     <div className="flex gap-4 items-center">
-                                        <div className="text-wood-500 font-black font-mono">{c.id}</div>
-                                        <div className="text-slate-100 font-bold">{c.name}</div>
+                                        <div className="text-wood-600 font-black font-mono bg-wood-600/5 px-3 py-1 rounded-lg border border-wood-600/10">{c.id}</div>
+                                        <div>
+                                            <div className="text-slate-100 font-bold">{c.name}</div>
+                                            <div className="text-[10px] text-slate-500 uppercase font-bold">{c.category}</div>
+                                        </div>
                                     </div>
-                                    <ArrowRight className="text-slate-600" />
+                                    <div className="flex items-center gap-3">
+                                        {c.score !== null ? (
+                                            <div className="text-emerald-500 font-black font-mono text-lg">{c.score}</div>
+                                        ) : (
+                                            <div className="px-3 py-1 bg-slate-800 text-slate-500 text-[10px] font-bold rounded-lg border border-slate-700">PENDENTE</div>
+                                        )}
+                                        <ArrowRight className="text-slate-600" />
+                                    </div>
                                 </button>
                             ))}
                         </div>
@@ -446,7 +517,7 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
                 <div className="animate-in slide-in-from-right duration-300">
                     <div className="flex items-center justify-between mb-8">
                         <button onClick={() => setSelected(null)} className="text-slate-500 hover:text-wood-500 font-bold flex items-center gap-2">
-                           <RotateCcw className="w-4 h-4" /> CANCELAR
+                           <RotateCcw className="w-4 h-4" /> VOLTAR
                         </button>
                         <div className="text-right">
                            <div className="text-wood-500 font-black text-2xl font-mono leading-none">{selected.id}</div>
@@ -455,9 +526,7 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
                     </div>
                     <TargetBoard initialTargets={selected.targetsHit} onScoreConfirm={async (t) => {
                         await TournamentService.updateScore(selected.id, t);
-                        alert('Pontos salvos!');
-                        setSelected(null);
-                        setSearchTerm('');
+                        await handleScoreSuccess();
                     }} />
                 </div>
             )}
@@ -576,8 +645,8 @@ const App: React.FC = () => {
       {!globalYear && <WelcomeYearModal onSelect={setGlobalYear} />}
       {isYearConfirmOpen && (
          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-slate-900 rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-800">
-               <h3 className="text-xl font-black text-slate-100 mb-4">ALTERAR TEMPORADA?</h3>
+            <div className="bg-slate-900 rounded-3xl p-8 max-sm:mx-4 w-full max-w-sm shadow-2xl border border-slate-800">
+               <h3 className="text-xl font-black text-slate-100 mb-4 tracking-tighter">ALTERAR TEMPORADA?</h3>
                <p className="text-slate-500 text-sm mb-8 font-medium">Você voltará para a tela de seleção de ano. Continuar?</p>
                <div className="flex gap-4">
                   <button onClick={() => setIsYearConfirmOpen(false)} className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 font-bold hover:bg-slate-800 transition-all">NÃO</button>

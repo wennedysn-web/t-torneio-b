@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TARGET_CONFIGS, MAX_SHOTS } from '../types';
-import { Circle, CheckCircle2, Target, PlusCircle } from 'lucide-react';
+import { Circle, CheckCircle2, Target, PlusCircle, Ban, AlertTriangle, X, Check } from 'lucide-react';
 
 interface TargetBoardProps {
   onScoreConfirm: (targets: number[]) => void;
@@ -10,6 +10,7 @@ interface TargetBoardProps {
 export const TargetBoard: React.FC<TargetBoardProps> = ({ onScoreConfirm, initialTargets = [] }) => {
   const [availableTargets, setAvailableTargets] = useState<{ id: string; value: number; isSelected: boolean }[]>([]);
   const [extraPoints, setExtraPoints] = useState<number[]>([]);
+  const [showZeroConfirm, setShowZeroConfirm] = useState(false);
 
   useEffect(() => {
     let items: { id: string; value: number; isSelected: boolean }[] = [];
@@ -55,8 +56,40 @@ export const TargetBoard: React.FC<TargetBoardProps> = ({ onScoreConfirm, initia
     });
   };
 
+  const handleConfirmZero = () => {
+    setShowZeroConfirm(false);
+    onScoreConfirm([]);
+  };
+
   return (
-    <div className="bg-slate-900 p-6 rounded-xl shadow-2xl border border-slate-800">
+    <div className="bg-slate-900 p-6 rounded-xl shadow-2xl border border-slate-800 relative">
+      {/* Modal de Confirmação de Pontuação Zero */}
+      {showZeroConfirm && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm rounded-xl p-6 border border-slate-700 animate-in fade-in zoom-in duration-200">
+          <div className="text-center">
+            <div className="bg-amber-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/20">
+              <AlertTriangle className="w-8 h-8 text-amber-500" />
+            </div>
+            <h4 className="text-xl font-black text-slate-100 mb-2">VALIDAR COM ZERO?</h4>
+            <p className="text-slate-400 text-sm mb-6">Esta ação confirmará que o competidor não abateu nenhum alvo e removerá o status de "Pendente".</p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowZeroConfirm(false)}
+                className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl hover:bg-slate-700 transition-colors"
+              >
+                CANCELAR
+              </button>
+              <button 
+                onClick={handleConfirmZero}
+                className="flex-1 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 shadow-lg shadow-amber-900/20 transition-colors"
+              >
+                CONFIRMAR 0
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-6">
         <div>
           <h3 className="text-lg font-bold text-slate-100">Seletor de Alvos</h3>
@@ -106,13 +139,22 @@ export const TargetBoard: React.FC<TargetBoardProps> = ({ onScoreConfirm, initia
         ))}
       </div>
 
-      <button
-        onClick={() => onScoreConfirm([...availableTargets.filter(t => t.isSelected).map(t => t.value), ...extraPoints])}
-        className="w-full py-4 bg-wood-600 hover:bg-wood-700 text-white rounded-xl font-bold text-lg shadow-xl shadow-wood-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-      >
-        <Target className="w-5 h-5" />
-        Salvar Pontuação
-      </button>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={() => setShowZeroConfirm(true)}
+          className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl font-bold text-base border border-slate-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+        >
+          <Ban className="w-5 h-5" />
+          Validar com 0
+        </button>
+        <button
+          onClick={() => onScoreConfirm([...availableTargets.filter(t => t.isSelected).map(t => t.value), ...extraPoints])}
+          className="flex-[2] py-4 bg-wood-600 hover:bg-wood-700 text-white rounded-xl font-bold text-lg shadow-xl shadow-wood-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+        >
+          <Target className="w-5 h-5" />
+          Salvar Pontuação
+        </button>
+      </div>
     </div>
   );
 };
