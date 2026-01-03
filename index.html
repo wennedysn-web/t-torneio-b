@@ -33,7 +33,28 @@
     </script>
     <style>
       body {
-        background-color: #f3f4f6;
+        background-color: #020617; /* Slate-950 */
+        color: #f8fafc; /* Slate-50 */
+      }
+      /* Custom scrollbar for dark theme */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+      }
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .mask-gradient {
+        mask-image: linear-gradient(to right, black 85%, transparent 100%);
       }
     </style>
   <script type="importmap">
