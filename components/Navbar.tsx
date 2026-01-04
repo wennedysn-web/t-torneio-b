@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Trophy, Target, UserPlus, LogOut, Lock, Users, GitMerge, Calendar } from 'lucide-react';
 
@@ -51,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onChangeView, isAdm
             
             <button onClick={() => onChangeView('bracket')} className={navItemClass('bracket')}>
               <GitMerge className="w-4 h-4" />
-              <span className="hidden sm:inline">Chaves</span>
+              <span className="hidden sm:inline">Chaveamento</span>
             </button>
             
             <button onClick={() => onChangeView('registration')} className={navItemClass('registration')}>
