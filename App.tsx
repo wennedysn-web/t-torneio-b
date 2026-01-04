@@ -232,15 +232,14 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   const [isWideMode, setIsWideMode] = useState(false);
   const [showControls, setShowControls] = useState(false);
   
-  // Configurações de visualização ajustáveis pelo usuário para o modo projetor
   const [projectorConfig, setProjectorConfig] = useState({
-    pageZoom: 1.0,       // Zoom geral da página
-    cardScale: 1.0,      // Controla o padding vertical dos cartões
-    nameSize: 1.125,     // text-lg em rem
-    rankSize: 1.0,       // text-base em rem (ícone de classificação)
-    scoreSize: 1.875,    // text-3xl em rem
-    gapSize: 1.0,        // rem
-    columnWidth: 450     // px
+    pageZoom: 1.0,
+    cardScale: 1.0,
+    nameSize: 1.125,
+    rankSize: 1.0,
+    scoreSize: 1.875,
+    gapSize: 1.0,
+    columnWidth: 450
   });
 
   useEffect(() => {
@@ -281,29 +280,29 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   };
 
   return (
-    <div className={`transition-all duration-700 min-h-screen ${isWideMode ? 'w-full px-12 overflow-x-hidden bg-slate-950' : 'max-w-7xl mx-auto p-4 sm:p-8'}`}>
+    <div className={`transition-all duration-700 min-h-screen ${isWideMode ? 'w-full bg-slate-950 px-8' : 'max-w-7xl mx-auto p-4 sm:p-8'}`}>
       
-      {/* Wrapper de Zoom - FIXADO NO CANTO SUPERIOR ESQUERDO */}
+      {/* Wrapper de Zoom Definitivo - Ancorado Top Left sem margens automáticas */}
       <div 
         style={isWideMode ? { 
             width: `${100 / projectorConfig.pageZoom}%`,
             transform: `scale(${projectorConfig.pageZoom})`, 
             transformOrigin: 'top left',
-            transition: 'transform 0.3s ease-out, width 0.3s ease-out'
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         } : {}}
       >
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-8 border-b border-slate-900 pb-10">
             <div className="text-center md:text-left">
                 <h1 className="text-5xl font-black text-slate-100 mb-2 tracking-tighter uppercase">Ranking Geral</h1>
                 <div className="flex items-center gap-4 justify-center md:justify-start">
-                <div className="flex items-center gap-2 px-3 py-1 bg-slate-900 rounded-full border border-slate-800">
-                    <Calendar className="w-4 h-4 text-wood-500" />
-                    <span className="text-slate-400 font-bold text-xs uppercase">{year}</span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-wood-600/10 rounded-full border border-wood-600/20">
-                    <AlertCircle className="w-4 h-4 text-wood-500" />
-                    <span className="text-wood-400 font-black text-[10px] uppercase">Melhor Lançamento</span>
-                </div>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-slate-900 rounded-full border border-slate-800">
+                      <Calendar className="w-4 h-4 text-wood-500" />
+                      <span className="text-slate-400 font-bold text-xs uppercase">{year}</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-wood-600/10 rounded-full border border-wood-600/20">
+                      <AlertCircle className="w-4 h-4 text-wood-500" />
+                      <span className="text-wood-400 font-black text-[10px] uppercase">Melhor Lançamento</span>
+                  </div>
                 </div>
             </div>
             
@@ -327,8 +326,8 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
             </div>
         </div>
 
-        {/* CONTAINER DE CATEGORIAS - JUSTIFY START PARA ANCORAR NA ESQUERDA */}
-        <div className={`transition-all duration-500 ${isWideMode ? 'flex flex-wrap justify-start gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
+        {/* Layout de Categorias - Justify Start para manter ancoragem na esquerda */}
+        <div className={`transition-all duration-500 ${isWideMode ? 'flex flex-wrap justify-start gap-8 pb-10 items-start' : 'grid gap-10 md:grid-cols-2'}`}>
             {categories.map((cat) => (
             <div 
                 key={cat.id} 
@@ -349,9 +348,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                     <div 
                         key={comp.id} 
                         className={`flex items-center rounded-2xl border border-slate-800 bg-slate-950/50 transition-all hover:bg-slate-800 shadow-sm`}
-                        style={{ 
-                            padding: isWideMode ? `${0.75 * projectorConfig.cardScale}rem 1.25rem` : '1.25rem' 
-                        }}
+                        style={{ padding: isWideMode ? `${0.75 * projectorConfig.cardScale}rem 1.25rem` : '1.25rem' }}
                     >
                         <div 
                             className={`flex items-center justify-center rounded-xl font-black mr-5 shrink-0 transition-all ${index < 3 ? 'bg-wood-500 text-slate-950 shadow-lg shadow-wood-500/20' : 'bg-slate-800 text-slate-500'}`}
@@ -372,6 +369,15 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                         </div>
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">{comp.id}</span>
+                            {/* Pontuação detalhada apenas na tela normal conforme solicitado */}
+                            {comp.score !== null && !isWideMode && (
+                                <>
+                                    <span className="text-[10px] text-wood-500/50 font-black">•</span>
+                                    <span className="text-[10px] text-wood-500/80 font-black uppercase tracking-tighter bg-wood-500/5 border border-wood-500/10 px-2 py-0.5 rounded-md">
+                                    {formatTargets(comp)}
+                                    </span>
+                                </>
+                            )}
                         </div>
                         </div>
                         <div className="text-right pl-4">
@@ -397,7 +403,6 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
         </div>
       </div>
 
-      {/* PAINEL DE CONTROLE DE PROJEÇÃO - Fora do zoomed div para manter usabilidade */}
       {isWideMode && showControls && (
         <div className="fixed bottom-6 right-6 z-[60] bg-slate-900/95 backdrop-blur-xl border border-wood-500/30 rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.5)] p-8 w-80 animate-in slide-in-from-bottom-10 duration-500">
             <div className="flex items-center justify-between mb-8">
@@ -417,11 +422,23 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                         <span className="text-[10px] font-mono text-wood-500">{(projectorConfig.pageZoom * 100).toFixed(0)}%</span>
                     </div>
                     <input 
-                        type="range" min="0.3" max="2.0" step="0.05" value={projectorConfig.pageZoom} 
+                        type="range" min="0.2" max="2.0" step="0.05" value={projectorConfig.pageZoom} 
                         onChange={(e) => setProjectorConfig({...projectorConfig, pageZoom: parseFloat(e.target.value)})}
                         className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
                     />
-                    <p className="text-[8px] text-slate-600 mt-1 uppercase font-bold text-center">Âncora: Canto Superior Esquerdo</p>
+                    <p className="text-[8px] text-slate-600 mt-1 uppercase font-bold text-center">Âncora: Top-Left (Esquerda Superior)</p>
+                </div>
+                
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Largura Coluna</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.columnWidth}px</span>
+                    </div>
+                    <input 
+                        type="range" min="200" max="1200" step="10" value={projectorConfig.columnWidth} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, columnWidth: parseInt(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
                 </div>
 
                 <div>
@@ -438,60 +455,12 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
 
                 <div>
                     <div className="flex justify-between mb-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fonte do Nome</label>
-                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.nameSize}rem</span>
-                    </div>
-                    <input 
-                        type="range" min="0.5" max="3.0" step="0.1" value={projectorConfig.nameSize} 
-                        onChange={(e) => setProjectorConfig({...projectorConfig, nameSize: parseFloat(e.target.value)})}
-                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
-                    />
-                </div>
-
-                <div>
-                    <div className="flex justify-between mb-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tamanho Ranking</label>
-                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.rankSize}x</span>
-                    </div>
-                    <input 
-                        type="range" min="0.5" max="2.0" step="0.1" value={projectorConfig.rankSize} 
-                        onChange={(e) => setProjectorConfig({...projectorConfig, rankSize: parseFloat(e.target.value)})}
-                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
-                    />
-                </div>
-
-                <div>
-                    <div className="flex justify-between mb-2">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fonte Pontos</label>
                         <span className="text-[10px] font-mono text-wood-500">{projectorConfig.scoreSize}rem</span>
                     </div>
                     <input 
                         type="range" min="1.0" max="6.0" step="0.2" value={projectorConfig.scoreSize} 
                         onChange={(e) => setProjectorConfig({...projectorConfig, scoreSize: parseFloat(e.target.value)})}
-                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
-                    />
-                </div>
-
-                <div>
-                    <div className="flex justify-between mb-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Espaçamento</label>
-                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.gapSize}rem</span>
-                    </div>
-                    <input 
-                        type="range" min="0.1" max="4.0" step="0.1" value={projectorConfig.gapSize} 
-                        onChange={(e) => setProjectorConfig({...projectorConfig, gapSize: parseFloat(e.target.value)})}
-                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
-                    />
-                </div>
-
-                <div>
-                    <div className="flex justify-between mb-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Largura Coluna</label>
-                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.columnWidth}px</span>
-                    </div>
-                    <input 
-                        type="range" min="250" max="1000" step="10" value={projectorConfig.columnWidth} 
-                        onChange={(e) => setProjectorConfig({...projectorConfig, columnWidth: parseInt(e.target.value)})}
                         className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
                     />
                 </div>
@@ -661,14 +630,14 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
 const WelcomeYearModal: React.FC<{ onSelect: (year: number) => void }> = ({ onSelect }) => {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/98 backdrop-blur-2xl p-4">
-       <div className="bg-slate-900 rounded-[40px] sm:rounded-[60px] p-8 sm:p-16 max-w-lg w-full shadow-2xl text-center border border-slate-800 overflow-hidden">
-          <Calendar className="w-10 h-10 sm:w-14 sm:h-14 text-wood-500 mx-auto mb-6 sm:mb-10" />
-          <h2 className="text-3xl sm:text-5xl font-black text-slate-100 mb-4 tracking-tighter uppercase">Torneio</h2>
+       <div className="bg-slate-900 rounded-[40px] sm:rounded-[60px] p-6 sm:p-12 max-w-[90vw] sm:max-w-lg w-full shadow-2xl text-center border border-slate-800 flex flex-col items-center">
+          <Calendar className="w-10 h-10 sm:w-14 sm:h-14 text-wood-500 mb-6 sm:mb-10" />
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-100 mb-2 sm:mb-4 tracking-tighter uppercase">Torneio</h2>
           <p className="text-slate-500 mb-8 sm:mb-12 font-bold uppercase text-xs sm:text-base tracking-widest">Selecione a Temporada</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 w-full max-w-sm">
              {[2024, 2025].map(y => (
-                <button key={y} onClick={() => onSelect(y)} className="rounded-[30px] sm:rounded-[40px] bg-slate-950 hover:bg-wood-600 p-6 sm:p-10 text-center border-2 border-slate-800 transition-all active:scale-95 group">
-                   <span className="block text-3xl sm:text-4xl font-black text-slate-100 mb-1 sm:mb-2">{y}</span>
+                <button key={y} onClick={() => onSelect(y)} className="rounded-[24px] sm:rounded-[40px] bg-slate-950 hover:bg-wood-600 p-6 sm:p-10 text-center border-2 border-slate-800 transition-all active:scale-95 group flex flex-col items-center justify-center">
+                   <span className="block text-2xl sm:text-4xl font-black text-slate-100 mb-1 group-hover:text-white">{y}</span>
                    <span className="text-[10px] font-black tracking-widest text-slate-600 uppercase group-hover:text-white/80">Acessar</span>
                 </button>
              ))}
