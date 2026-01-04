@@ -670,15 +670,15 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
 const WelcomeYearModal: React.FC<{ onSelect: (year: number) => void }> = ({ onSelect }) => {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/98 backdrop-blur-2xl p-4">
-       <div className="bg-slate-900 rounded-[60px] p-16 max-w-lg w-full shadow-2xl text-center border border-slate-800">
-          <Calendar className="w-14 h-14 text-wood-500 mx-auto mb-10" />
-          <h2 className="text-5xl font-black text-slate-100 mb-4 tracking-tighter uppercase">Torneio</h2>
-          <p className="text-slate-500 mb-12 font-bold uppercase">Selecione a Temporada</p>
-          <div className="grid grid-cols-2 gap-6">
+       <div className="bg-slate-900 rounded-[40px] sm:rounded-[60px] p-8 sm:p-16 max-w-lg w-full shadow-2xl text-center border border-slate-800 overflow-hidden">
+          <Calendar className="w-10 h-10 sm:w-14 sm:h-14 text-wood-500 mx-auto mb-6 sm:mb-10" />
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-100 mb-4 tracking-tighter uppercase">Torneio</h2>
+          <p className="text-slate-500 mb-8 sm:mb-12 font-bold uppercase text-xs sm:text-base tracking-widest">Selecione a Temporada</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
              {[2024, 2025].map(y => (
-                <button key={y} onClick={() => onSelect(y)} className="rounded-[40px] bg-slate-950 hover:bg-wood-600 p-10 text-center border-2 border-slate-800 transition-all">
-                   <span className="block text-4xl font-black text-slate-100 mb-2">{y}</span>
-                   <span className="text-[10px] font-black tracking-widest text-slate-600 uppercase">Acessar</span>
+                <button key={y} onClick={() => onSelect(y)} className="rounded-[30px] sm:rounded-[40px] bg-slate-950 hover:bg-wood-600 p-6 sm:p-10 text-center border-2 border-slate-800 transition-all active:scale-95 group">
+                   <span className="block text-3xl sm:text-4xl font-black text-slate-100 mb-1 sm:mb-2">{y}</span>
+                   <span className="text-[10px] font-black tracking-widest text-slate-600 uppercase group-hover:text-white/80">Acessar</span>
                 </button>
              ))}
           </div>
@@ -748,7 +748,7 @@ const App: React.FC = () => {
       {!globalYear && <WelcomeYearModal onSelect={setGlobalYear} />}
       {isYearConfirmOpen && (
          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4">
-            <div className="bg-slate-900 rounded-[40px] p-12 max-sm w-full text-center border border-slate-800">
+            <div className="bg-slate-900 rounded-[40px] p-12 max-w-sm w-full text-center border border-slate-800">
                <h3 className="text-2xl font-black text-slate-100 mb-10 uppercase">Sair?</h3>
                <div className="flex gap-4">
                   <button onClick={() => setIsYearConfirmOpen(false)} className="flex-1 py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black">NÃO</button>
