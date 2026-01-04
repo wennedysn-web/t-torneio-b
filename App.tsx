@@ -180,12 +180,11 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
             <div className={`flex flex-col ${isLivre ? 'gap-[310px] mt-32' : 'gap-32 mt-12'}`}>
               <h6 className="text-[9px] font-black text-slate-700 uppercase tracking-[0.4em] mb-4 text-center">Semi-Final</h6>
               {[0, 1].map(i => (
-                <button key={i} className="text-left focus:outline-none">
-                  <MatchCard 
-                    p1={getCompetitor(getMatchData('QF', i*2)?.winnerId)} 
-                    p2={getCompetitor(getMatchData('QF', i*2+1)?.winnerId)} 
-                  />
-                </button>
+                <MatchCard 
+                  key={i} 
+                  p1={getCompetitor(getMatchData('QF', i*2)?.winnerId)} 
+                  p2={getCompetitor(getMatchData('QF', i*2+1)?.winnerId)} 
+                />
               ))}
             </div>
 
@@ -285,11 +284,14 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
     <div className={`transition-all duration-700 min-h-screen ${isWideMode ? 'w-full px-6 overflow-x-hidden' : 'max-w-7xl mx-auto p-4 sm:p-8'}`}>
       
       {/* Wrapper de Zoom - Afeta todo o conteúdo exceto os controles flutuantes */}
+      {/* Ajustado: width 100/zoom% para que ao diminuir o zoom, o layout se expanda lateralmente */}
       <div 
+        className="mx-auto"
         style={isWideMode ? { 
+            width: `${100 / projectorConfig.pageZoom}%`,
             transform: `scale(${projectorConfig.pageZoom})`, 
             transformOrigin: 'top center',
-            transition: 'transform 0.3s ease-out'
+            transition: 'transform 0.3s ease-out, width 0.3s ease-out'
         } : {}}
       >
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-8 border-b border-slate-900 pb-10">
@@ -327,12 +329,12 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
             </div>
         </div>
 
-        <div className={`transition-all duration-500 ${isWideMode ? 'flex overflow-x-auto gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
+        <div className={`transition-all duration-500 ${isWideMode ? 'flex flex-wrap justify-center gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
             {categories.map((cat) => (
             <div 
                 key={cat.id} 
                 className={`bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300`}
-                style={{ minWidth: isWideMode ? `${projectorConfig.columnWidth}px` : 'auto' }}
+                style={{ width: isWideMode ? `${projectorConfig.columnWidth}px` : 'auto', minWidth: isWideMode ? `${projectorConfig.columnWidth}px` : 'auto' }}
             >
                 <div className="px-8 py-6 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -424,10 +426,11 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                         <span className="text-[10px] font-mono text-wood-500">{(projectorConfig.pageZoom * 100).toFixed(0)}%</span>
                     </div>
                     <input 
-                        type="range" min="0.5" max="3.0" step="0.05" value={projectorConfig.pageZoom} 
+                        type="range" min="0.3" max="2.0" step="0.05" value={projectorConfig.pageZoom} 
                         onChange={(e) => setProjectorConfig({...projectorConfig, pageZoom: parseFloat(e.target.value)})}
                         className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
                     />
+                    <p className="text-[8px] text-slate-600 mt-1 uppercase font-bold">Zoom baixo permite ver mais categorias lado a lado.</p>
                 </div>
 
                 <div>
@@ -496,7 +499,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                         <span className="text-[10px] font-mono text-wood-500">{projectorConfig.columnWidth}px</span>
                     </div>
                     <input 
-                        type="range" min="300" max="1200" step="10" value={projectorConfig.columnWidth} 
+                        type="range" min="250" max="1000" step="10" value={projectorConfig.columnWidth} 
                         onChange={(e) => setProjectorConfig({...projectorConfig, columnWidth: parseInt(e.target.value)})}
                         className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
                     />
