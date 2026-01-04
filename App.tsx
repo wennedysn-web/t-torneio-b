@@ -334,8 +334,8 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
              </div>
              <div className={`p-6 space-y-4 ${isWideMode ? 'overflow-visible' : 'overflow-y-auto flex-1 custom-scroll'}`}>
                 {sortCompetitors(displayedCompetitors.filter(c => c.category === cat.name)).map((comp, index) => (
-                  <div key={comp.id} className="flex items-center p-5 rounded-2xl border border-slate-800 bg-slate-950/50 transition-all hover:bg-slate-800">
-                    <div className={`w-12 h-12 flex items-center justify-center rounded-xl font-black mr-5 shrink-0 ${index < 3 ? 'bg-wood-500 text-slate-950 shadow-lg shadow-wood-500/20' : 'bg-slate-800 text-slate-500'}`}>
+                  <div key={comp.id} className={`flex items-center rounded-2xl border border-slate-800 bg-slate-950/50 transition-all hover:bg-slate-800 ${isWideMode ? 'py-3 px-5' : 'p-5'}`}>
+                    <div className={`flex items-center justify-center rounded-xl font-black mr-5 shrink-0 ${isWideMode ? 'w-10 h-10 text-sm' : 'w-12 h-12'} ${index < 3 ? 'bg-wood-500 text-slate-950 shadow-lg shadow-wood-500/20' : 'bg-slate-800 text-slate-500'}`}>
                       {index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -358,7 +358,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                       {comp.score === null ? (
                         <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Pendente</span>
                       ) : (
-                        <span className="text-4xl font-black text-wood-500 font-mono tracking-tighter">{comp.score}</span>
+                        <span className={`font-black text-wood-500 font-mono tracking-tighter ${isWideMode ? 'text-3xl' : 'text-4xl'}`}>{comp.score}</span>
                       )}
                     </div>
                   </div>
