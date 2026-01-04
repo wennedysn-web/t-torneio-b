@@ -222,7 +222,7 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                   </div>
                </div>
                <div className="text-center">
-                  <p className="text-[9px] font-black text-wood-500 uppercase tracking-[0.5em] mb-3">Campeão</p>
+                  <p className="text-[9px] font-black text-wood-500 uppercase tracking-with-[0.5em] mb-3">Campeão</p>
                   <div className="bg-wood-600 px-8 py-4 rounded-2xl shadow-[0_10px_40px_rgba(166,114,67,0.4)]">
                      <span className="text-xl font-black text-white uppercase tracking-tighter">
                         {getCompetitor(getMatchData('F', 0)?.winnerId)?.name || '????'}
@@ -340,19 +340,17 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-slate-100 truncate text-lg uppercase tracking-tight">{comp.name}</div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                          <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">{comp.id}</span>
                          {comp.score !== null && !isWideMode && (
-                            <span className="text-[10px] text-wood-500/50 font-black">•</span>
+                            <>
+                                <span className="text-[10px] text-wood-500/50 font-black">•</span>
+                                <span className="text-[10px] text-wood-500/80 font-black uppercase tracking-tighter bg-wood-500/5 border border-wood-500/10 px-2 py-0.5 rounded-md">
+                                   {formatTargets(comp)}
+                                </span>
+                            </>
                          )}
                       </div>
-                      {comp.score !== null && !isWideMode && (
-                         <div className="flex flex-wrap gap-1.5 mt-1">
-                            <span className="text-[10px] text-wood-500/80 font-black uppercase tracking-tighter bg-wood-500/5 border border-wood-500/10 px-2 py-0.5 rounded-md">
-                               {formatTargets(comp)}
-                            </span>
-                         </div>
-                      )}
                     </div>
                     <div className="text-right pl-4">
                       {comp.score === null ? (

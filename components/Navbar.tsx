@@ -50,32 +50,36 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onChangeView, isAdm
               <span className="hidden sm:inline">Ranking</span>
             </button>
             
-            <button onClick={() => onChangeView('bracket')} className={navItemClass('bracket')}>
-              <GitMerge className="w-4 h-4" />
-              <span className="hidden sm:inline">Chaveamento</span>
-            </button>
-            
-            <button onClick={() => onChangeView('registration')} className={navItemClass('registration')}>
-              <UserPlus className="w-4 h-4" />
-              <span className="hidden sm:inline">Inscrição</span>
-            </button>
+            {isAdmin && (
+              <>
+                <button onClick={() => onChangeView('bracket')} className={navItemClass('bracket')}>
+                  <GitMerge className="w-4 h-4" />
+                  <span className="hidden sm:inline">Chaveamento</span>
+                </button>
+                
+                <button onClick={() => onChangeView('registration')} className={navItemClass('registration')}>
+                  <UserPlus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Inscrição</span>
+                </button>
 
-            <button onClick={() => onChangeView('scoring')} className={navItemClass('scoring')}>
-              <Target className="w-4 h-4" />
-              <span className="hidden sm:inline">Pontos</span>
-            </button>
+                <button onClick={() => onChangeView('scoring')} className={navItemClass('scoring')}>
+                  <Target className="w-4 h-4" />
+                  <span className="hidden sm:inline">Pontos</span>
+                </button>
 
-            <button onClick={() => onChangeView('manage')} className={navItemClass('manage')}>
-              <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Gerenciar</span>
-            </button>
+                <button onClick={() => onChangeView('manage')} className={navItemClass('manage')}>
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">Gerenciar</span>
+                </button>
+              </>
+            )}
 
             {isAdmin ? (
-               <button onClick={onLogout} className="flex items-center gap-2 px-3 py-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors font-medium ml-2">
+               <button onClick={onLogout} className="flex items-center gap-2 px-3 py-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors font-medium ml-2" title="Sair">
                 <LogOut className="w-4 h-4" />
                </button>
             ) : (
-              <button onClick={() => onChangeView('login')} className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-wood-400 transition-colors ml-2">
+              <button onClick={() => onChangeView('login')} className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-wood-400 transition-colors ml-2" title="Login Administrativo">
                 <Lock className="w-4 h-4" />
               </button>
             )}
