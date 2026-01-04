@@ -4,7 +4,7 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase, MatchResult } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2 } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -180,11 +180,12 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
             <div className={`flex flex-col ${isLivre ? 'gap-[310px] mt-32' : 'gap-32 mt-12'}`}>
               <h6 className="text-[9px] font-black text-slate-700 uppercase tracking-[0.4em] mb-4 text-center">Semi-Final</h6>
               {[0, 1].map(i => (
-                <MatchCard 
-                  key={i} 
-                  p1={getCompetitor(getMatchData('QF', i*2)?.winnerId)} 
-                  p2={getCompetitor(getMatchData('QF', i*2+1)?.winnerId)} 
-                />
+                <button key={i} className="text-left focus:outline-none">
+                  <MatchCard 
+                    p1={getCompetitor(getMatchData('QF', i*2)?.winnerId)} 
+                    p2={getCompetitor(getMatchData('QF', i*2+1)?.winnerId)} 
+                  />
+                </button>
               ))}
             </div>
 
@@ -234,6 +235,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   
   // Configurações de visualização ajustáveis pelo usuário para o modo projetor
   const [projectorConfig, setProjectorConfig] = useState({
+    pageZoom: 1.0,       // Zoom geral da página
     cardScale: 1.0,      // Controla o padding vertical dos cartões
     nameSize: 1.125,     // text-lg em rem
     rankSize: 1.0,       // text-base em rem (ícone de classificação)
@@ -269,6 +271,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
 
   const resetConfig = () => {
     setProjectorConfig({
+      pageZoom: 1.0,
       cardScale: 1.0,
       nameSize: 1.125,
       rankSize: 1.0,
@@ -279,119 +282,129 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   };
 
   return (
-    <div className={`transition-all duration-700 min-h-screen ${isWideMode ? 'w-full px-6' : 'max-w-7xl mx-auto p-4 sm:p-8'}`}>
-      <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-8 border-b border-slate-900 pb-10">
-        <div className="text-center md:text-left">
-            <h1 className="text-5xl font-black text-slate-100 mb-2 tracking-tighter uppercase">Ranking Geral</h1>
-            <div className="flex items-center gap-4 justify-center md:justify-start">
-               <div className="flex items-center gap-2 px-3 py-1 bg-slate-900 rounded-full border border-slate-800">
-                  <Calendar className="w-4 h-4 text-wood-500" />
-                  <span className="text-slate-400 font-bold text-xs uppercase">{year}</span>
-               </div>
-               <div className="flex items-center gap-2 px-3 py-1 bg-wood-600/10 rounded-full border border-wood-600/20">
-                  <AlertCircle className="w-4 h-4 text-wood-500" />
-                  <span className="text-wood-400 font-black text-[10px] uppercase">Melhor Lançamento</span>
-               </div>
+    <div className={`transition-all duration-700 min-h-screen ${isWideMode ? 'w-full px-6 overflow-x-hidden' : 'max-w-7xl mx-auto p-4 sm:p-8'}`}>
+      
+      {/* Wrapper de Zoom - Afeta todo o conteúdo exceto os controles flutuantes */}
+      <div 
+        style={isWideMode ? { 
+            transform: `scale(${projectorConfig.pageZoom})`, 
+            transformOrigin: 'top center',
+            transition: 'transform 0.3s ease-out'
+        } : {}}
+      >
+        <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-8 border-b border-slate-900 pb-10">
+            <div className="text-center md:text-left">
+                <h1 className="text-5xl font-black text-slate-100 mb-2 tracking-tighter uppercase">Ranking Geral</h1>
+                <div className="flex items-center gap-4 justify-center md:justify-start">
+                <div className="flex items-center gap-2 px-3 py-1 bg-slate-900 rounded-full border border-slate-800">
+                    <Calendar className="w-4 h-4 text-wood-500" />
+                    <span className="text-slate-400 font-bold text-xs uppercase">{year}</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1 bg-wood-600/10 rounded-full border border-wood-600/20">
+                    <AlertCircle className="w-4 h-4 text-wood-500" />
+                    <span className="text-wood-400 font-black text-[10px] uppercase">Melhor Lançamento</span>
+                </div>
+                </div>
+            </div>
+            
+            <div className="flex gap-4">
+                {isWideMode && (
+                    <button 
+                    onClick={() => setShowControls(!showControls)}
+                    className={`flex items-center gap-3 px-6 py-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl transition-all active:scale-95 group ${showControls ? 'text-wood-500 border-wood-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                    >
+                        <Sliders className="w-5 h-5" />
+                        <span className="font-black text-xs uppercase tracking-widest">Ajustes</span>
+                    </button>
+                )}
+                <button 
+                onClick={() => setIsWideMode(!isWideMode)}
+                className="flex items-center gap-3 px-8 py-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl hover:bg-slate-800 text-slate-300 transition-all active:scale-95 group"
+                >
+                    {isWideMode ? <Layout className="w-5 h-5 group-hover:text-wood-500" /> : <Monitor className="w-5 h-5 group-hover:text-wood-500" />}
+                    <span className="font-black text-xs uppercase tracking-widest">{isWideMode ? "Modo Normal" : "Modo Projetor"}</span>
+                </button>
             </div>
         </div>
-        
-        <div className="flex gap-4">
-            {isWideMode && (
-                <button 
-                  onClick={() => setShowControls(!showControls)}
-                  className={`flex items-center gap-3 px-6 py-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl transition-all active:scale-95 group ${showControls ? 'text-wood-500 border-wood-500/30' : 'text-slate-400 hover:text-slate-200'}`}
-                >
-                    <Sliders className="w-5 h-5" />
-                    <span className="font-black text-xs uppercase tracking-widest">Ajustes</span>
-                </button>
-            )}
-            <button 
-              onClick={() => setIsWideMode(!isWideMode)}
-              className="flex items-center gap-3 px-8 py-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl hover:bg-slate-800 text-slate-300 transition-all active:scale-95 group"
+
+        <div className={`transition-all duration-500 ${isWideMode ? 'flex overflow-x-auto gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
+            {categories.map((cat) => (
+            <div 
+                key={cat.id} 
+                className={`bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300`}
+                style={{ minWidth: isWideMode ? `${projectorConfig.columnWidth}px` : 'auto' }}
             >
-                {isWideMode ? <Layout className="w-5 h-5 group-hover:text-wood-500" /> : <Monitor className="w-5 h-5 group-hover:text-wood-500" />}
-                <span className="font-black text-xs uppercase tracking-widest">{isWideMode ? "Modo Normal" : "Modo Projetor"}</span>
-            </button>
+                <div className="px-8 py-6 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        < Trophy className="w-7 h-7 text-wood-500" />
+                        <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tighter">{cat.name}</h2>
+                    </div>
+                </div>
+                <div 
+                    className={`p-6 ${isWideMode ? 'overflow-visible' : 'overflow-y-auto flex-1 custom-scroll'}`}
+                    style={{ gap: isWideMode ? `${projectorConfig.gapSize}rem` : '1rem', display: 'flex', flexDirection: 'column' }}
+                >
+                    {sortCompetitors(displayedCompetitors.filter(c => c.category === cat.name)).map((comp, index) => (
+                    <div 
+                        key={comp.id} 
+                        className={`flex items-center rounded-2xl border border-slate-800 bg-slate-950/50 transition-all hover:bg-slate-800 shadow-sm`}
+                        style={{ 
+                            padding: isWideMode ? `${0.75 * projectorConfig.cardScale}rem 1.25rem` : '1.25rem' 
+                        }}
+                    >
+                        <div 
+                            className={`flex items-center justify-center rounded-xl font-black mr-5 shrink-0 transition-all ${index < 3 ? 'bg-wood-500 text-slate-950 shadow-lg shadow-wood-500/20' : 'bg-slate-800 text-slate-500'}`}
+                            style={{ 
+                                width: isWideMode ? `${2.5 * projectorConfig.rankSize}rem` : '3rem', 
+                                height: isWideMode ? `${2.5 * projectorConfig.rankSize}rem` : '3rem',
+                                fontSize: isWideMode ? `${0.875 * projectorConfig.rankSize}rem` : '1rem'
+                            }}
+                        >
+                        {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                        <div 
+                            className="font-bold text-slate-100 truncate uppercase tracking-tight"
+                            style={{ fontSize: isWideMode ? `${projectorConfig.nameSize}rem` : '1.125rem' }}
+                        >
+                            {comp.name}
+                        </div>
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">{comp.id}</span>
+                            {comp.score !== null && !isWideMode && (
+                                <>
+                                    <span className="text-[10px] text-wood-500/50 font-black">•</span>
+                                    <span className="text-[10px] text-wood-500/80 font-black uppercase tracking-tighter bg-wood-500/5 border border-wood-500/10 px-2 py-0.5 rounded-md">
+                                    {formatTargets(comp)}
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                        </div>
+                        <div className="text-right pl-4">
+                        {comp.score === null ? (
+                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Pendente</span>
+                        ) : (
+                            <span 
+                                className="font-black text-wood-500 font-mono tracking-tighter"
+                                style={{ fontSize: isWideMode ? `${projectorConfig.scoreSize}rem` : '2.25rem' }}
+                            >
+                                {comp.score}
+                            </span>
+                        )}
+                        </div>
+                    </div>
+                    ))}
+                    {displayedCompetitors.filter(c => c.category === cat.name).length === 0 && (
+                    <div className="text-center py-20 text-slate-700 font-black uppercase tracking-widest text-xs">Aguardando Inscrições</div>
+                    )}
+                </div>
+            </div>
+            ))}
         </div>
       </div>
 
-      <div className={`transition-all duration-500 ${isWideMode ? 'flex overflow-x-auto gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
-        {categories.map((cat) => (
-          <div 
-            key={cat.id} 
-            className={`bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300`}
-            style={{ minWidth: isWideMode ? `${projectorConfig.columnWidth}px` : 'auto' }}
-          >
-             <div className="px-8 py-6 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    < Trophy className="w-7 h-7 text-wood-500" />
-                    <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tighter">{cat.name}</h2>
-                </div>
-             </div>
-             <div 
-                className={`p-6 ${isWideMode ? 'overflow-visible' : 'overflow-y-auto flex-1 custom-scroll'}`}
-                style={{ gap: isWideMode ? `${projectorConfig.gapSize}rem` : '1rem', display: 'flex', flexDirection: 'column' }}
-             >
-                {sortCompetitors(displayedCompetitors.filter(c => c.category === cat.name)).map((comp, index) => (
-                  <div 
-                    key={comp.id} 
-                    className={`flex items-center rounded-2xl border border-slate-800 bg-slate-950/50 transition-all hover:bg-slate-800 shadow-sm`}
-                    style={{ 
-                        padding: isWideMode ? `${0.75 * projectorConfig.cardScale}rem 1.25rem` : '1.25rem' 
-                    }}
-                  >
-                    <div 
-                        className={`flex items-center justify-center rounded-xl font-black mr-5 shrink-0 transition-all ${index < 3 ? 'bg-wood-500 text-slate-950 shadow-lg shadow-wood-500/20' : 'bg-slate-800 text-slate-500'}`}
-                        style={{ 
-                            width: isWideMode ? `${2.5 * projectorConfig.rankSize}rem` : '3rem', 
-                            height: isWideMode ? `${2.5 * projectorConfig.rankSize}rem` : '3rem',
-                            fontSize: isWideMode ? `${0.875 * projectorConfig.rankSize}rem` : '1rem'
-                        }}
-                    >
-                      {index + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div 
-                        className="font-bold text-slate-100 truncate uppercase tracking-tight"
-                        style={{ fontSize: isWideMode ? `${projectorConfig.nameSize}rem` : '1.125rem' }}
-                      >
-                        {comp.name}
-                      </div>
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                         <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">{comp.id}</span>
-                         {comp.score !== null && !isWideMode && (
-                            <>
-                                <span className="text-[10px] text-wood-500/50 font-black">•</span>
-                                <span className="text-[10px] text-wood-500/80 font-black uppercase tracking-tighter bg-wood-500/5 border border-wood-500/10 px-2 py-0.5 rounded-md">
-                                   {formatTargets(comp)}
-                                </span>
-                            </>
-                         )}
-                      </div>
-                    </div>
-                    <div className="text-right pl-4">
-                      {comp.score === null ? (
-                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Pendente</span>
-                      ) : (
-                        <span 
-                            className="font-black text-wood-500 font-mono tracking-tighter"
-                            style={{ fontSize: isWideMode ? `${projectorConfig.scoreSize}rem` : '2.25rem' }}
-                        >
-                            {comp.score}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {displayedCompetitors.filter(c => c.category === cat.name).length === 0 && (
-                   <div className="text-center py-20 text-slate-700 font-black uppercase tracking-widest text-xs">Aguardando Inscrições</div>
-                )}
-             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* PAINEL DE CONTROLE DE PROJEÇÃO */}
+      {/* PAINEL DE CONTROLE DE PROJEÇÃO - Fora do zoomed div para manter usabilidade */}
       {isWideMode && showControls && (
         <div className="fixed bottom-6 right-6 z-[60] bg-slate-900/95 backdrop-blur-xl border border-wood-500/30 rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.5)] p-8 w-80 animate-in slide-in-from-bottom-10 duration-500">
             <div className="flex items-center justify-between mb-8">
@@ -402,7 +415,21 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                 <button onClick={() => setShowControls(false)} className="text-slate-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scroll">
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-wood-500 uppercase tracking-widest flex items-center gap-2">
+                          <Maximize2 className="w-3 h-3" /> Zoom Geral
+                        </label>
+                        <span className="text-[10px] font-mono text-wood-500">{(projectorConfig.pageZoom * 100).toFixed(0)}%</span>
+                    </div>
+                    <input 
+                        type="range" min="0.5" max="3.0" step="0.05" value={projectorConfig.pageZoom} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, pageZoom: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
                 <div>
                     <div className="flex justify-between mb-2">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tamanho do Cartão</label>
@@ -469,7 +496,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                         <span className="text-[10px] font-mono text-wood-500">{projectorConfig.columnWidth}px</span>
                     </div>
                     <input 
-                        type="range" min="300" max="800" step="10" value={projectorConfig.columnWidth} 
+                        type="range" min="300" max="1200" step="10" value={projectorConfig.columnWidth} 
                         onChange={(e) => setProjectorConfig({...projectorConfig, columnWidth: parseInt(e.target.value)})}
                         className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
                     />
@@ -477,7 +504,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                 
                 <button 
                     onClick={resetConfig}
-                    className="w-full py-3 bg-slate-950 border border-slate-800 text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-800 hover:text-white transition-all"
+                    className="w-full py-3 bg-slate-950 border border-slate-800 text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-800 hover:text-white transition-all sticky bottom-0"
                 >
                     Resetar Padrão
                 </button>
@@ -718,7 +745,7 @@ const App: React.FC = () => {
       {!globalYear && <WelcomeYearModal onSelect={setGlobalYear} />}
       {isYearConfirmOpen && (
          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4">
-            <div className="bg-slate-900 rounded-[40px] p-12 max-w-sm w-full text-center border border-slate-800">
+            <div className="bg-slate-900 rounded-[40px] p-12 max-sm w-full text-center border border-slate-800">
                <h3 className="text-2xl font-black text-slate-100 mb-10 uppercase">Sair?</h3>
                <div className="flex gap-4">
                   <button onClick={() => setIsYearConfirmOpen(false)} className="flex-1 py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black">NÃO</button>
