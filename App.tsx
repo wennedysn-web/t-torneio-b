@@ -325,14 +325,14 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
 
       <div className={`transition-all duration-500 ${isWideMode ? 'flex overflow-x-auto gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
         {categories.map((cat) => (
-          <div key={cat.id} className={`bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col h-full ${isWideMode ? 'min-w-[450px] max-h-[calc(100vh-250px)] flex-shrink-0' : 'min-h-[400px]'}`}>
+          <div key={cat.id} className={`bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col h-full ${isWideMode ? 'min-w-[450px] flex-shrink-0' : 'min-h-[400px]'}`}>
              <div className="px-8 py-6 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Trophy className="w-7 h-7 text-wood-500" />
+                    < Trophy className="w-7 h-7 text-wood-500" />
                     <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tighter">{cat.name}</h2>
                 </div>
              </div>
-             <div className="overflow-y-auto flex-1 p-6 space-y-4 custom-scroll">
+             <div className={`p-6 space-y-4 ${isWideMode ? 'overflow-visible' : 'overflow-y-auto flex-1 custom-scroll'}`}>
                 {sortCompetitors(displayedCompetitors.filter(c => c.category === cat.name)).map((comp, index) => (
                   <div key={comp.id} className="flex items-center p-5 rounded-2xl border border-slate-800 bg-slate-950/50 transition-all hover:bg-slate-800">
                     <div className={`w-12 h-12 flex items-center justify-center rounded-xl font-black mr-5 shrink-0 ${index < 3 ? 'bg-wood-500 text-slate-950 shadow-lg shadow-wood-500/20' : 'bg-slate-800 text-slate-500'}`}>
