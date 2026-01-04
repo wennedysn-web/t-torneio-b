@@ -281,16 +281,14 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   };
 
   return (
-    <div className={`transition-all duration-700 min-h-screen ${isWideMode ? 'w-full px-6 overflow-x-hidden' : 'max-w-7xl mx-auto p-4 sm:p-8'}`}>
+    <div className={`transition-all duration-700 min-h-screen ${isWideMode ? 'w-full px-12 overflow-x-hidden bg-slate-950' : 'max-w-7xl mx-auto p-4 sm:p-8'}`}>
       
-      {/* Wrapper de Zoom - Afeta todo o conteúdo exceto os controles flutuantes */}
-      {/* Ajustado: width 100/zoom% para que ao diminuir o zoom, o layout se expanda lateralmente */}
+      {/* Wrapper de Zoom - FIXADO NO CANTO SUPERIOR ESQUERDO */}
       <div 
-        className="mx-auto"
         style={isWideMode ? { 
             width: `${100 / projectorConfig.pageZoom}%`,
             transform: `scale(${projectorConfig.pageZoom})`, 
-            transformOrigin: 'top center',
+            transformOrigin: 'top left',
             transition: 'transform 0.3s ease-out, width 0.3s ease-out'
         } : {}}
       >
@@ -329,7 +327,8 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
             </div>
         </div>
 
-        <div className={`transition-all duration-500 ${isWideMode ? 'flex flex-wrap justify-center gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
+        {/* CONTAINER DE CATEGORIAS - JUSTIFY START PARA ANCORAR NA ESQUERDA */}
+        <div className={`transition-all duration-500 ${isWideMode ? 'flex flex-wrap justify-start gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
             {categories.map((cat) => (
             <div 
                 key={cat.id} 
@@ -373,14 +372,6 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                         </div>
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">{comp.id}</span>
-                            {comp.score !== null && !isWideMode && (
-                                <>
-                                    <span className="text-[10px] text-wood-500/50 font-black">•</span>
-                                    <span className="text-[10px] text-wood-500/80 font-black uppercase tracking-tighter bg-wood-500/5 border border-wood-500/10 px-2 py-0.5 rounded-md">
-                                    {formatTargets(comp)}
-                                    </span>
-                                </>
-                            )}
                         </div>
                         </div>
                         <div className="text-right pl-4">
@@ -430,7 +421,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                         onChange={(e) => setProjectorConfig({...projectorConfig, pageZoom: parseFloat(e.target.value)})}
                         className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
                     />
-                    <p className="text-[8px] text-slate-600 mt-1 uppercase font-bold">Zoom baixo permite ver mais categorias lado a lado.</p>
+                    <p className="text-[8px] text-slate-600 mt-1 uppercase font-bold text-center">Âncora: Canto Superior Esquerdo</p>
                 </div>
 
                 <div>
