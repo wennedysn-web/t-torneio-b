@@ -4,22 +4,13 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase, MatchResult } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown } from 'lucide-react';
 
 // --- UTILS ---
 
 const formatTargets = (c: Competitor): string => {
   if (!c.targetsHit || c.targetsHit.length === 0) return "";
-  // Ordena os alvos do maior para o menor para exibição
   return [...c.targetsHit].sort((a, b) => b - a).join(' · ');
-};
-
-const isPerfectTie = (a: Competitor, b: Competitor): boolean => {
-  if (a.score !== b.score) return false;
-  const targetsA = [...(a.targetsHit || [])].sort((x, y) => x - y);
-  const targetsB = [...(b.targetsHit || [])].sort((x, y) => x - y);
-  if (targetsA.length !== targetsB.length) return false;
-  return targetsA.every((val, index) => val === targetsB[index]);
 };
 
 const compareCompetitors = (a: Competitor, b: Competitor): number => {
@@ -157,7 +148,6 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
 
         <div className="overflow-x-auto pb-24 no-scrollbar">
           <div className="flex items-center justify-start min-w-[1300px] px-10">
-            
             {isLivre && (
               <>
                 <div className="flex flex-col gap-10">
@@ -222,7 +212,7 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                   </div>
                </div>
                <div className="text-center">
-                  <p className="text-[9px] font-black text-wood-500 uppercase tracking-with-[0.5em] mb-3">Campeão</p>
+                  <p className="text-[9px] font-black text-wood-500 uppercase tracking-widest mb-3">Campeão</p>
                   <div className="bg-wood-600 px-8 py-4 rounded-2xl shadow-[0_10px_40px_rgba(166,114,67,0.4)]">
                      <span className="text-xl font-black text-white uppercase tracking-tighter">
                         {getCompetitor(getMatchData('F', 0)?.winnerId)?.name || '????'}
@@ -230,38 +220,7 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                   </div>
                </div>
             </div>
-
           </div>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6 mt-12">
-           <div className="bg-slate-900/50 p-6 rounded-3xl border border-slate-800 flex items-center gap-4">
-              <div className="w-10 h-10 bg-wood-600/10 rounded-xl flex items-center justify-center border border-wood-600/20">
-                 <Info className="w-5 h-5 text-wood-500" />
-              </div>
-              <div>
-                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sincronização</p>
-                 <p className="text-xs text-slate-300 font-bold">Atualizado a cada 10s</p>
-              </div>
-           </div>
-           <div className="bg-slate-900/50 p-6 rounded-3xl border border-slate-800 flex items-center gap-4">
-              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
-                 <Target className="w-5 h-5 text-emerald-500" />
-              </div>
-              <div>
-                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Classificação</p>
-                 <p className="text-xs text-slate-300 font-bold">Top 16 Melhores Scores</p>
-              </div>
-           </div>
-           <div className="bg-slate-900/50 p-6 rounded-3xl border border-slate-800 flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
-                 <Calendar className="w-5 h-5 text-blue-500" />
-              </div>
-              <div>
-                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Temporada</p>
-                 <p className="text-xs text-slate-300 font-bold">Edição {year}</p>
-              </div>
-           </div>
         </div>
       </div>
     );
@@ -271,6 +230,17 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [isWideMode, setIsWideMode] = useState(false);
+  const [showControls, setShowControls] = useState(false);
+  
+  // Configurações de visualização ajustáveis pelo usuário para o modo projetor
+  const [projectorConfig, setProjectorConfig] = useState({
+    cardScale: 1.0,      // Controla o padding vertical dos cartões
+    nameSize: 1.125,     // text-lg em rem
+    rankSize: 1.0,       // text-base em rem (ícone de classificação)
+    scoreSize: 1.875,    // text-3xl em rem
+    gapSize: 1.0,        // rem
+    columnWidth: 450     // px
+  });
 
   useEffect(() => {
     const load = async () => {
@@ -297,6 +267,17 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   const currentYearComps = competitors.filter(c => c.year === year);
   const displayedCompetitors = filterBestScores(currentYearComps);
 
+  const resetConfig = () => {
+    setProjectorConfig({
+      cardScale: 1.0,
+      nameSize: 1.125,
+      rankSize: 1.0,
+      scoreSize: 1.875,
+      gapSize: 1.0,
+      columnWidth: 450
+    });
+  };
+
   return (
     <div className={`transition-all duration-700 min-h-screen ${isWideMode ? 'w-full px-6' : 'max-w-7xl mx-auto p-4 sm:p-8'}`}>
       <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-8 border-b border-slate-900 pb-10">
@@ -314,32 +295,68 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
             </div>
         </div>
         
-        <button 
-          onClick={() => setIsWideMode(!isWideMode)}
-          className="flex items-center gap-3 px-8 py-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl hover:bg-slate-800 text-slate-300 transition-all active:scale-95 group"
-        >
-            {isWideMode ? <Layout className="w-5 h-5 group-hover:text-wood-500" /> : <Monitor className="w-5 h-5 group-hover:text-wood-500" />}
-            <span className="font-black text-xs uppercase tracking-widest">{isWideMode ? "Modo Normal" : "Modo Projetor"}</span>
-        </button>
+        <div className="flex gap-4">
+            {isWideMode && (
+                <button 
+                  onClick={() => setShowControls(!showControls)}
+                  className={`flex items-center gap-3 px-6 py-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl transition-all active:scale-95 group ${showControls ? 'text-wood-500 border-wood-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                    <Sliders className="w-5 h-5" />
+                    <span className="font-black text-xs uppercase tracking-widest">Ajustes</span>
+                </button>
+            )}
+            <button 
+              onClick={() => setIsWideMode(!isWideMode)}
+              className="flex items-center gap-3 px-8 py-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl hover:bg-slate-800 text-slate-300 transition-all active:scale-95 group"
+            >
+                {isWideMode ? <Layout className="w-5 h-5 group-hover:text-wood-500" /> : <Monitor className="w-5 h-5 group-hover:text-wood-500" />}
+                <span className="font-black text-xs uppercase tracking-widest">{isWideMode ? "Modo Normal" : "Modo Projetor"}</span>
+            </button>
+        </div>
       </div>
 
       <div className={`transition-all duration-500 ${isWideMode ? 'flex overflow-x-auto gap-8 pb-10 no-scrollbar items-start' : 'grid gap-10 md:grid-cols-2'}`}>
         {categories.map((cat) => (
-          <div key={cat.id} className={`bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col h-full ${isWideMode ? 'min-w-[450px] flex-shrink-0' : 'min-h-[400px]'}`}>
+          <div 
+            key={cat.id} 
+            className={`bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300`}
+            style={{ minWidth: isWideMode ? `${projectorConfig.columnWidth}px` : 'auto' }}
+          >
              <div className="px-8 py-6 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     < Trophy className="w-7 h-7 text-wood-500" />
                     <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tighter">{cat.name}</h2>
                 </div>
              </div>
-             <div className={`p-6 space-y-4 ${isWideMode ? 'overflow-visible' : 'overflow-y-auto flex-1 custom-scroll'}`}>
+             <div 
+                className={`p-6 ${isWideMode ? 'overflow-visible' : 'overflow-y-auto flex-1 custom-scroll'}`}
+                style={{ gap: isWideMode ? `${projectorConfig.gapSize}rem` : '1rem', display: 'flex', flexDirection: 'column' }}
+             >
                 {sortCompetitors(displayedCompetitors.filter(c => c.category === cat.name)).map((comp, index) => (
-                  <div key={comp.id} className={`flex items-center rounded-2xl border border-slate-800 bg-slate-950/50 transition-all hover:bg-slate-800 ${isWideMode ? 'py-3 px-5' : 'p-5'}`}>
-                    <div className={`flex items-center justify-center rounded-xl font-black mr-5 shrink-0 ${isWideMode ? 'w-10 h-10 text-sm' : 'w-12 h-12'} ${index < 3 ? 'bg-wood-500 text-slate-950 shadow-lg shadow-wood-500/20' : 'bg-slate-800 text-slate-500'}`}>
+                  <div 
+                    key={comp.id} 
+                    className={`flex items-center rounded-2xl border border-slate-800 bg-slate-950/50 transition-all hover:bg-slate-800 shadow-sm`}
+                    style={{ 
+                        padding: isWideMode ? `${0.75 * projectorConfig.cardScale}rem 1.25rem` : '1.25rem' 
+                    }}
+                  >
+                    <div 
+                        className={`flex items-center justify-center rounded-xl font-black mr-5 shrink-0 transition-all ${index < 3 ? 'bg-wood-500 text-slate-950 shadow-lg shadow-wood-500/20' : 'bg-slate-800 text-slate-500'}`}
+                        style={{ 
+                            width: isWideMode ? `${2.5 * projectorConfig.rankSize}rem` : '3rem', 
+                            height: isWideMode ? `${2.5 * projectorConfig.rankSize}rem` : '3rem',
+                            fontSize: isWideMode ? `${0.875 * projectorConfig.rankSize}rem` : '1rem'
+                        }}
+                    >
                       {index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-bold text-slate-100 truncate text-lg uppercase tracking-tight">{comp.name}</div>
+                      <div 
+                        className="font-bold text-slate-100 truncate uppercase tracking-tight"
+                        style={{ fontSize: isWideMode ? `${projectorConfig.nameSize}rem` : '1.125rem' }}
+                      >
+                        {comp.name}
+                      </div>
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                          <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">{comp.id}</span>
                          {comp.score !== null && !isWideMode && (
@@ -356,7 +373,12 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                       {comp.score === null ? (
                         <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Pendente</span>
                       ) : (
-                        <span className={`font-black text-wood-500 font-mono tracking-tighter ${isWideMode ? 'text-3xl' : 'text-4xl'}`}>{comp.score}</span>
+                        <span 
+                            className="font-black text-wood-500 font-mono tracking-tighter"
+                            style={{ fontSize: isWideMode ? `${projectorConfig.scoreSize}rem` : '2.25rem' }}
+                        >
+                            {comp.score}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -368,6 +390,100 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
           </div>
         ))}
       </div>
+
+      {/* PAINEL DE CONTROLE DE PROJEÇÃO */}
+      {isWideMode && showControls && (
+        <div className="fixed bottom-6 right-6 z-[60] bg-slate-900/95 backdrop-blur-xl border border-wood-500/30 rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.5)] p-8 w-80 animate-in slide-in-from-bottom-10 duration-500">
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                    <Sliders className="w-5 h-5 text-wood-500" />
+                    <h3 className="text-sm font-black text-slate-100 uppercase tracking-widest">Ajuste de Tela</h3>
+                </div>
+                <button onClick={() => setShowControls(false)} className="text-slate-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="space-y-6">
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tamanho do Cartão</label>
+                        <span className="text-[10px] font-mono text-wood-500">{(projectorConfig.cardScale * 100).toFixed(0)}%</span>
+                    </div>
+                    <input 
+                        type="range" min="0.4" max="2.0" step="0.05" value={projectorConfig.cardScale} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, cardScale: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fonte do Nome</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.nameSize}rem</span>
+                    </div>
+                    <input 
+                        type="range" min="0.5" max="3.0" step="0.1" value={projectorConfig.nameSize} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, nameSize: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tamanho Ranking</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.rankSize}x</span>
+                    </div>
+                    <input 
+                        type="range" min="0.5" max="2.0" step="0.1" value={projectorConfig.rankSize} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, rankSize: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fonte Pontos</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.scoreSize}rem</span>
+                    </div>
+                    <input 
+                        type="range" min="1.0" max="6.0" step="0.2" value={projectorConfig.scoreSize} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, scoreSize: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Espaçamento</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.gapSize}rem</span>
+                    </div>
+                    <input 
+                        type="range" min="0.1" max="4.0" step="0.1" value={projectorConfig.gapSize} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, gapSize: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Largura Coluna</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.columnWidth}px</span>
+                    </div>
+                    <input 
+                        type="range" min="300" max="800" step="10" value={projectorConfig.columnWidth} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, columnWidth: parseInt(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+                
+                <button 
+                    onClick={resetConfig}
+                    className="w-full py-3 bg-slate-950 border border-slate-800 text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-800 hover:text-white transition-all"
+                >
+                    Resetar Padrão
+                </button>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
