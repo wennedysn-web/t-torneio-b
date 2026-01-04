@@ -49,14 +49,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onChangeView, isAdm
               <Trophy className="w-4 h-4" />
               <span className="hidden sm:inline">Ranking</span>
             </button>
+
+            {/* Chaveamento agora é visível para todos os visitantes */}
+            <button onClick={() => onChangeView('bracket')} className={navItemClass('bracket')}>
+              <GitMerge className="w-4 h-4" />
+              <span className="hidden sm:inline">Chaveamento</span>
+            </button>
             
             {isAdmin && (
               <>
-                <button onClick={() => onChangeView('bracket')} className={navItemClass('bracket')}>
-                  <GitMerge className="w-4 h-4" />
-                  <span className="hidden sm:inline">Chaveamento</span>
-                </button>
-                
                 <button onClick={() => onChangeView('registration')} className={navItemClass('registration')}>
                   <UserPlus className="w-4 h-4" />
                   <span className="hidden sm:inline">Inscrição</span>
