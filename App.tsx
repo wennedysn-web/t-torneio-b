@@ -4,7 +4,7 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase, MatchResult } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2, Hash, Zap, RefreshCcw } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2, Hash, Zap } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -34,18 +34,36 @@ const sortCompetitors = (competitors: Competitor[]) => {
 
 // --- BRACKET UI COMPONENTS ---
 
-const MatchCard: React.FC<{ p1?: Competitor, p2?: Competitor, score1?: number, score2?: number, winnerId?: string | null }> = ({ p1, p2, score1, score2, winnerId }) => (
+const MatchCard: React.FC<{ 
+  p1?: Competitor, 
+  p2?: Competitor, 
+  score1?: number, 
+  score2?: number, 
+  winnerId?: string | null,
+  rank1?: number,
+  rank2?: number
+}> = ({ p1, p2, score1, score2, winnerId, rank1, rank2 }) => (
   <div className="w-48 h-20 flex flex-col bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden shadow-2xl backdrop-blur-sm shrink-0">
-    <div className={`flex items-center justify-between px-3 h-10 border-b border-slate-800/50 ${winnerId === p1?.id && p1 ? 'bg-wood-600/10' : ''}`}>
-      <span className={`text-[11px] font-bold truncate flex-1 uppercase tracking-tight ${p1 ? 'text-slate-100' : 'text-slate-600 italic'}`}>
-        {p1 ? p1.name : 'TBD'}
-      </span>
+    <div className={`flex items-center justify-between px-2 h-10 border-b border-slate-800/50 ${winnerId === p1?.id && p1 ? 'bg-wood-600/10' : ''}`}>
+      <div className="flex items-center gap-2 flex-1 truncate">
+        <div className={`w-5 h-5 flex items-center justify-center rounded border text-[9px] font-black shrink-0 ${p1 ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-600'}`}>
+          {rank1 ? `${rank1}º` : '–'}
+        </div>
+        <span className={`text-[10px] font-bold truncate uppercase tracking-tight ${p1 ? 'text-slate-100' : 'text-slate-600 italic'}`}>
+          {p1 ? p1.name : 'TBD'}
+        </span>
+      </div>
       {score1 !== undefined && <span className={`ml-2 font-black text-xs ${winnerId === p1?.id ? 'text-wood-500' : 'text-slate-500'}`}>{score1}</span>}
     </div>
-    <div className={`flex items-center justify-between px-3 h-10 ${winnerId === p2?.id && p2 ? 'bg-wood-600/10' : ''}`}>
-      <span className={`text-[11px] font-bold truncate flex-1 uppercase tracking-tight ${p2 ? 'text-slate-100' : 'text-slate-600 italic'}`}>
-        {p2 ? p2.name : 'TBD'}
-      </span>
+    <div className={`flex items-center justify-between px-2 h-10 ${winnerId === p2?.id && p2 ? 'bg-wood-600/10' : ''}`}>
+      <div className="flex items-center gap-2 flex-1 truncate">
+        <div className={`w-5 h-5 flex items-center justify-center rounded border text-[9px] font-black shrink-0 ${p2 ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-600'}`}>
+          {rank2 ? `${rank2}º` : '–'}
+        </div>
+        <span className={`text-[10px] font-bold truncate uppercase tracking-tight ${p2 ? 'text-slate-100' : 'text-slate-600 italic'}`}>
+          {p2 ? p2.name : 'TBD'}
+        </span>
+      </div>
       {score2 !== undefined && <span className={`ml-2 font-black text-xs ${winnerId === p2?.id ? 'text-wood-500' : 'text-slate-500'}`}>{score2}</span>}
     </div>
   </div>
@@ -124,6 +142,12 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
 
     const getCompetitor = (id?: string) => qualifiers.find(c => c.id === id);
 
+    const getInitialRank = (id?: string) => {
+        if (!id) return undefined;
+        const idx = qualifiers.findIndex(q => q.id === id);
+        return idx !== -1 ? idx + 1 : undefined;
+    };
+
     if (loading) return (
       <div className="flex flex-col items-center justify-center p-40">
         <RefreshCw className="w-12 h-12 text-wood-500 animate-spin mb-4" />
@@ -178,7 +202,16 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                   <RoundHeader title="Oitavas de Final" />
                   <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
                     {livreSeeds.map((pair, i) => (
-                      <MatchCard key={i} p1={qualifiers[pair[0]]} p2={qualifiers[pair[1]]} />
+                      <MatchCard 
+                        key={i} 
+                        p1={qualifiers[pair[0]]} 
+                        p2={qualifiers[pair[1]]} 
+                        rank1={pair[0] + 1}
+                        rank2={pair[1] + 1}
+                        score1={getMatchData('R16', i)?.score1}
+                        score2={getMatchData('R16', i)?.score2}
+                        winnerId={getMatchData('R16', i)?.winnerId}
+                      />
                     ))}
                   </div>
                 </div>
@@ -193,13 +226,23 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                 <div className="flex flex-col w-48">
                   <RoundHeader title="Quartas de Final" />
                   <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
-                    {[0, 1, 2, 3].map(i => (
-                      <MatchCard 
-                        key={i} 
-                        p1={getCompetitor(getMatchData('R16', i*2)?.winnerId)} 
-                        p2={getCompetitor(getMatchData('R16', i*2+1)?.winnerId)} 
-                      />
-                    ))}
+                    {[0, 1, 2, 3].map(i => {
+                      const comp1 = getCompetitor(getMatchData('R16', i*2)?.winnerId);
+                      const comp2 = getCompetitor(getMatchData('R16', i*2+1)?.winnerId);
+                      const currentMatch = getMatchData('QF', i);
+                      return (
+                        <MatchCard 
+                          key={i} 
+                          p1={comp1} 
+                          p2={comp2}
+                          rank1={getInitialRank(comp1?.id)}
+                          rank2={getInitialRank(comp2?.id)}
+                          score1={currentMatch?.score1}
+                          score2={currentMatch?.score2}
+                          winnerId={currentMatch?.winnerId}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="flex flex-col justify-around pt-[40px]" style={{ height: bracketHeight + 40 }}>
@@ -212,16 +255,35 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
               <RoundHeader title="Semi-Final" />
               <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
                 {isLivre ? (
-                  [0, 1].map(i => (
-                    <MatchCard 
-                      key={i} 
-                      p1={getCompetitor(getMatchData('QF', i*2)?.winnerId)} 
-                      p2={getCompetitor(getMatchData('QF', i*2+1)?.winnerId)} 
-                    />
-                  ))
+                  [0, 1].map(i => {
+                    const comp1 = getCompetitor(getMatchData('QF', i*2)?.winnerId);
+                    const comp2 = getCompetitor(getMatchData('QF', i*2+1)?.winnerId);
+                    const currentMatch = getMatchData('SF', i);
+                    return (
+                      <MatchCard 
+                        key={i} 
+                        p1={comp1} 
+                        p2={comp2}
+                        rank1={getInitialRank(comp1?.id)}
+                        rank2={getInitialRank(comp2?.id)}
+                        score1={currentMatch?.score1}
+                        score2={currentMatch?.score2}
+                        winnerId={currentMatch?.winnerId}
+                      />
+                    );
+                  })
                 ) : (
                   otherSeeds.map((pair, i) => (
-                    <MatchCard key={i} p1={qualifiers[pair[0]]} p2={qualifiers[pair[1]]} />
+                    <MatchCard 
+                        key={i} 
+                        p1={qualifiers[pair[0]]} 
+                        p2={qualifiers[pair[1]]} 
+                        rank1={pair[0] + 1}
+                        rank2={pair[1] + 1}
+                        score1={getMatchData('SF', i)?.score1}
+                        score2={getMatchData('SF', i)?.score2}
+                        winnerId={getMatchData('SF', i)?.winnerId}
+                    />
                   ))
                 )}
               </div>
@@ -234,10 +296,22 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
             <div className="flex flex-col w-48">
               <RoundHeader title="Grande Final" />
               <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
-                  <MatchCard 
-                    p1={getCompetitor(getMatchData('SF', 0)?.winnerId)} 
-                    p2={getCompetitor(getMatchData('SF', 1)?.winnerId)} 
-                  />
+                  {(() => {
+                    const comp1 = getCompetitor(getMatchData('SF', 0)?.winnerId);
+                    const comp2 = getCompetitor(getMatchData('SF', 1)?.winnerId);
+                    const currentMatch = getMatchData('F', 0);
+                    return (
+                      <MatchCard 
+                        p1={comp1} 
+                        p2={comp2}
+                        rank1={getInitialRank(comp1?.id)}
+                        rank2={getInitialRank(comp2?.id)}
+                        score1={currentMatch?.score1}
+                        score2={currentMatch?.score2}
+                        winnerId={currentMatch?.winnerId}
+                      />
+                    );
+                  })()}
               </div>
             </div>
 
@@ -744,7 +818,8 @@ const MataMataManager: React.FC<{ year: number }> = ({ year }) => {
                     onClick={handleResetAll}
                     className="flex items-center gap-3 px-8 py-4 bg-red-950/20 border border-red-900/30 text-red-500 hover:bg-red-900/40 rounded-2xl transition-all font-black text-[10px] uppercase tracking-widest group shadow-2xl"
                 >
-                    <RefreshCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                    {/* Fixed typo: changed RefreshCcw to RefreshCw */}
+                    <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
                     Resetar Tudo
                 </button>
             </div>
@@ -827,7 +902,7 @@ const MatchManagerCard: React.FC<{
 
     if (!p1 && !p2) return (
         <div className="bg-slate-900/30 border border-slate-800/50 p-6 rounded-[28px] opacity-40 flex items-center justify-center italic text-slate-600 text-xs">
-            Aguardando definição dos confrontos anteriores...
+            Aguardando definition dos confrontos anteriores...
         </div>
     );
 
