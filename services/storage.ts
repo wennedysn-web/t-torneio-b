@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { Competitor, CategoryDef, TARGET_CONFIGS } from '../types';
 
@@ -12,12 +13,12 @@ const LS_KEYS = {
   CATEGORIES: 'baladeira_categories_backup',
   COMPETITORS: 'baladeira_competitors_backup',
   AUTH_USER: 'baladeira_auth_user_backup',
-  MATCHES: 'baladeira_matches_backup' // Nova chave para partidas
+  MATCHES: 'baladeira_matches_backup'
 };
 
 // Interface para Partida
 export interface MatchResult {
-  id: string; // ex: "Livre-2024-R16-1" (Categoria-Ano-Fase-Indice)
+  id: string; // ex: "Livre-2024-R16-1"
   p1Id: string;
   p2Id: string;
   score1: number;
@@ -40,7 +41,6 @@ const LAST_NAMES = [
   'Rocha', 'Dias', 'Nascimento', 'Andrade', 'Moreira', 'Nunes', 'Marques', 'Machado', 'Mendes', 'Freitas'
 ];
 
-// Helper para verificar se estamos operando no modo Admin Local (Sem backend)
 const isOfflineMode = () => {
   try {
     const userStr = localStorage.getItem(LS_KEYS.AUTH_USER);
@@ -53,45 +53,24 @@ const isOfflineMode = () => {
 };
 
 export const TournamentService = {
-  // --- Auth Wrapper ---
   auth: {
     login: async (email: string, password: string) => {
       try {
-        // Tentativa Online
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        
-        // Salva sessão localmente para persistência simples
         localStorage.setItem(LS_KEYS.AUTH_USER, JSON.stringify(data.user));
         return { user: data.user, error: null };
-
       } catch (err: any) {
-        console.warn('Falha no login online, tentando modo offline/backup...', err.message);
-
-        // Fallback para ADMIN local (Modo de emergência/teste)
-        // Permite admin/admin ou a credencial correta mesmo sem rede
-        if (
-          (email === 'admin@baladeira.com' && password === 'admin123') || 
-          (email === 'admin' && password === 'admin')
-        ) {
+        if ((email === 'admin@baladeira.com' && password === 'admin123') || (email === 'admin' && password === 'admin')) {
           const fakeUser = { id: 'offline-admin', email: 'admin@baladeira.com', role: 'authenticated' };
           localStorage.setItem(LS_KEYS.AUTH_USER, JSON.stringify(fakeUser));
           return { user: fakeUser as any, error: null };
         }
-
         return { user: null, error: err };
       }
     },
     logout: async () => {
-      try {
-        await supabase.auth.signOut();
-      } catch (e) {
-        console.warn('Erro ao deslogar do Supabase', e);
-      }
+      try { await supabase.auth.signOut(); } catch (e) {}
       localStorage.removeItem(LS_KEYS.AUTH_USER);
       return { error: null };
     },
@@ -99,119 +78,52 @@ export const TournamentService = {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) return session.user;
-      } catch (e) {
-        // Ignora erro de fetch na sessão
-      }
-      
-      // Fallback local
+      } catch (e) {}
       const local = localStorage.getItem(LS_KEYS.AUTH_USER);
       return local ? JSON.parse(local) : null;
     }
   },
 
-  // --- Health Check ---
-  checkHealth: async (): Promise<{ ok: boolean; message?: string }> => {
-    if (isOfflineMode()) return { ok: false, message: 'Modo Admin Local (Dados apenas no navegador)' };
-
-    try {
-      const { error } = await supabase.from('categories').select('count', { count: 'exact', head: true }).limit(1);
-      if (error) throw error;
-      return { ok: true };
-    } catch (err: any) {
-      return { ok: false, message: 'Sem conexão com banco (Offline)' };
-    }
-  },
-
-  // --- Initialize ---
-  initDefaults: async () => {
-    // Carrega categorias locais se existirem
-    const localCats = localStorage.getItem(LS_KEYS.CATEGORIES);
-    let hasLocal = localCats && JSON.parse(localCats).length > 0;
-
-    if (!hasLocal) {
-        const defaults = [
-            { id: 1, name: 'Livre', prefix: 'L' },
-            { id: 2, name: 'Feminina', prefix: 'F' }
-        ];
-        localStorage.setItem(LS_KEYS.CATEGORIES, JSON.stringify(defaults));
-    }
-
-    if (isOfflineMode()) return;
-
-    try {
-      const { count, error } = await supabase.from('categories').select('*', { count: 'exact', head: true });
-      if (!error && count === 0) {
-        await supabase.from('categories').insert([
-          { name: 'Livre', prefix: 'L' },
-          { name: 'Feminina', prefix: 'F' }
-        ]);
-      }
-    } catch (e) {
-      console.log('Modo offline: pulando inicialização remota.');
-    }
-  },
-
-  // --- Categories ---
   getCategories: async (): Promise<CategoryDef[]> => {
     if (isOfflineMode()) {
         const cached = localStorage.getItem(LS_KEYS.CATEGORIES);
         return cached ? JSON.parse(cached) : [];
     }
-
     try {
       const { data, error } = await supabase.from('categories').select('*').order('id', { ascending: true });
       if (error) throw error;
-      
       localStorage.setItem(LS_KEYS.CATEGORIES, JSON.stringify(data));
       return data as CategoryDef[];
     } catch (e) {
-      console.warn('Usando categorias em cache (Offline)');
       const cached = localStorage.getItem(LS_KEYS.CATEGORIES);
       return cached ? JSON.parse(cached) : [];
     }
   },
 
   addCategory: async (name: string, prefix: string): Promise<void> => {
-    // 1. Atualiza Local
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.CATEGORIES) || '[]');
     const newCat = { id: Date.now(), name, prefix: prefix.toUpperCase() }; 
     localStorage.setItem(LS_KEYS.CATEGORIES, JSON.stringify([...cached, newCat]));
-
     if (isOfflineMode()) return;
-
-    // 2. Tenta Remoto
-    try {
-      await supabase.from('categories').insert({ name, prefix: prefix.toUpperCase() });
-    } catch (e) { console.error('Erro remoto add cat', e); }
+    try { await supabase.from('categories').insert({ name, prefix: prefix.toUpperCase() }); } catch (e) {}
   },
 
   deleteCategory: async (id: number): Promise<void> => {
-    // 1. Atualiza Local
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.CATEGORIES) || '[]');
     const filtered = cached.filter((c: any) => c.id !== id);
     localStorage.setItem(LS_KEYS.CATEGORIES, JSON.stringify(filtered));
-
     if (isOfflineMode()) return;
-
-    // 2. Tenta Remoto
-    try {
-      await supabase.from('categories').delete().eq('id', id);
-    } catch (e) { console.error('Erro remoto delete cat', e); }
+    try { await supabase.from('categories').delete().eq('id', id); } catch (e) {}
   },
 
-  // --- Competitors ---
   getAll: async (): Promise<Competitor[]> => {
-    // SE FOR MODO OFFLINE ADMIN, NÃO TENTE BUSCAR DO SUPABASE
-    // Isso evita que o getAll sobrescreva a exclusão local com dados antigos do servidor
     if (isOfflineMode()) {
         const cached = localStorage.getItem(LS_KEYS.COMPETITORS);
         return cached ? JSON.parse(cached) : [];
     }
-
     try {
       const { data, error } = await supabase.from('competitors').select('*');
       if (error) throw error;
-
       const formatted = data.map((row: any) => ({
         id: row.id,
         name: row.name,
@@ -219,15 +131,11 @@ export const TournamentService = {
         score: row.score,
         targetsHit: row.targets_hit || [],
         createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
-        // Se a coluna year não existir ou for null, tenta extrair do created_at ou usa o ano atual
-        year: row.year || (row.created_at ? new Date(row.created_at).getFullYear() : new Date().getFullYear())
+        year: row.year || new Date().getFullYear()
       }));
-
-      // Atualiza Cache
       localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(formatted));
       return formatted;
     } catch (e) {
-      console.warn('Usando competidores em cache (Offline)');
       const cached = localStorage.getItem(LS_KEYS.COMPETITORS);
       return cached ? JSON.parse(cached) : [];
     }
@@ -235,135 +143,43 @@ export const TournamentService = {
 
   register: async (name: string, categoryName: string, year: number): Promise<{ success: boolean; message: string; competitor?: Competitor }> => {
     try {
-      // Tenta obter prefixo
       const cats = await TournamentService.getCategories();
       const catDef = cats.find(c => c.name === categoryName);
       const prefix = catDef ? catDef.prefix : 'X';
-      
-      // Gerar ID
       const num = Math.floor(Math.random() * 900) + 100;
       const newId = `${prefix}${num}`;
-      
-      const newCompetitor: Competitor = {
-        id: newId,
-        name: name.trim(),
-        category: categoryName,
-        score: null,
-        targetsHit: [],
-        createdAt: Date.now(),
-        year: year
-      };
+      const newCompetitor: Competitor = { id: newId, name: name.trim(), category: categoryName, score: null, targetsHit: [], createdAt: Date.now(), year: year };
 
-      // 1. Salvar Localmente
       const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
-      const existingCount = cached.filter((c: Competitor) => 
-        c.name.toLowerCase() === name.trim().toLowerCase() && 
-        c.year === year // Limite de 3 por ANO
-      ).length;
-      
-      if (existingCount >= 3) {
-        return { success: false, message: 'Limite de 3 inscrições por pessoa atingido neste ano.' };
-      }
+      const existingCount = cached.filter((c: Competitor) => c.name.toLowerCase() === name.trim().toLowerCase() && c.year === year).length;
+      if (existingCount >= 3) return { success: false, message: 'Limite de 3 inscrições atingido.' };
       localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify([...cached, newCompetitor]));
 
-      if (isOfflineMode()) {
-          return { success: true, message: 'Inscrição realizada (Local)!', competitor: newCompetitor };
+      if (!isOfflineMode()) {
+        await supabase.from('competitors').insert({ id: newId, name: name.trim(), category: categoryName, score: null, targets_hit: [], created_at: new Date().toISOString(), year: year });
       }
-
-      // 2. Tentar Salvar Remotamente
-      try {
-        const { error } = await supabase.from('competitors').insert({
-          id: newId,
-          name: name.trim(),
-          category: categoryName,
-          score: null,
-          targets_hit: [],
-          created_at: new Date().toISOString(),
-          year: year
-        });
-        if (error) throw error;
-      } catch (remoteError) {
-        console.warn('Salvo apenas localmente (Erro de sincronização)', remoteError);
-      }
-
       return { success: true, message: 'Inscrição realizada!', competitor: newCompetitor };
-
-    } catch (e: any) {
-      return { success: false, message: `Erro: ${e.message}` };
-    }
+    } catch (e: any) { return { success: false, message: `Erro: ${e.message}` }; }
   },
 
   updateScore: async (id: string, targetsHit: number[]): Promise<boolean> => {
     const totalScore = targetsHit.reduce((a, b) => a + b, 0);
-
-    // 1. Atualiza Local
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
-    const updated = cached.map((c: Competitor) => {
-        if (c.id === id) {
-            return { ...c, score: totalScore, targetsHit: targetsHit };
-        }
-        return c;
-    });
+    const updated = cached.map((c: Competitor) => c.id === id ? { ...c, score: totalScore, targetsHit } : c);
     localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(updated));
-
     if (isOfflineMode()) return true;
-
-    // 2. Atualiza Remoto
-    try {
-      await supabase
-        .from('competitors')
-        .update({ score: totalScore, targets_hit: targetsHit })
-        .eq('id', id);
-      return true;
-    } catch (e) {
-      return true;
-    }
+    try { await supabase.from('competitors').update({ score: totalScore, targets_hit: targetsHit }).eq('id', id); return true; } catch (e) { return true; }
   },
 
-  // Adiciona 1 ponto à lista de alvos atingidos e recalcula
-  addTiebreaker: async (id: string, currentTargets: number[]): Promise<boolean> => {
-    // Adiciona o valor '1' que representa o desempate
-    const newTargets = [...currentTargets, 1];
-    return await TournamentService.updateScore(id, newTargets);
-  },
-
-  // Remove todos os pontos de desempate (valor 1)
-  resetTiebreaker: async (id: string, currentTargets: number[]): Promise<boolean> => {
-    // Filtra removendo o valor '1'
-    const newTargets = currentTargets.filter(val => val !== 1);
-    return await TournamentService.updateScore(id, newTargets);
-  },
-
-  // --- MATCHES (Mata-mata) ---
   saveMatch: async (match: MatchResult): Promise<boolean> => {
-    // 1. Atualiza Local (para resposta instantânea na UI)
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.MATCHES) || '[]');
     const filtered = cached.filter((m: MatchResult) => m.id !== match.id);
     localStorage.setItem(LS_KEYS.MATCHES, JSON.stringify([...filtered, match]));
-
     if (isOfflineMode()) return true;
-
-    // 2. Persiste no Supabase
     try {
-        const payload = {
-            id: match.id,
-            p1_id: match.p1Id,
-            p2_id: match.p2Id,
-            score1: match.score1,
-            score2: match.score2,
-            winner_id: match.winnerId,
-            timestamp: match.timestamp
-        };
-        
-        // Upsert permite Insert ou Update se o ID já existir
-        const { error } = await supabase.from('matches').upsert(payload);
-        if (error) throw error;
-        
+        await supabase.from('matches').upsert({ id: match.id, p1_id: match.p1Id, p2_id: match.p2Id, score1: match.score1, score2: match.score2, winner_id: match.winnerId, timestamp: match.timestamp });
         return true;
-    } catch (e) {
-        console.error("Erro ao salvar partida no Supabase", e);
-        return true; // Retorna true pois foi salvo localmente ao menos
-    }
+    } catch (e) { return true; }
   },
 
   getMatches: async (): Promise<MatchResult[]> => {
@@ -371,103 +187,44 @@ export const TournamentService = {
         const cached = localStorage.getItem(LS_KEYS.MATCHES);
         return cached ? JSON.parse(cached) : [];
      }
-
      try {
          const { data, error } = await supabase.from('matches').select('*');
          if (error) throw error;
-         
-         const formatted = data.map((m: any) => ({
-             id: m.id,
-             p1Id: m.p1_id,
-             p2Id: m.p2_id,
-             score1: m.score1,
-             score2: m.score2,
-             winnerId: m.winner_id,
-             timestamp: m.timestamp
-         }));
-
-         // Atualiza cache local
+         const formatted = data.map((m: any) => ({ id: m.id, p1Id: m.p1_id, p2Id: m.p2_id, score1: m.score1, score2: m.score2, winnerId: m.winner_id, timestamp: m.timestamp }));
          localStorage.setItem(LS_KEYS.MATCHES, JSON.stringify(formatted));
          return formatted;
      } catch(e) {
-         console.warn("Erro ao buscar partidas, usando cache local", e);
          const cached = localStorage.getItem(LS_KEYS.MATCHES);
          return cached ? JSON.parse(cached) : [];
      }
   },
 
-  deleteMatches: async (): Promise<void> => {
-      // 1. Local
-      localStorage.removeItem(LS_KEYS.MATCHES);
-
-      if (isOfflineMode()) return;
-
-      // 2. Remoto
-      try {
-        await supabase.from('matches').delete().neq('id', '0'); // Delete all
-      } catch(e) {
-          console.error("Erro ao limpar partidas remotas", e);
-      }
-  },
-
   updateName: async (id: string, newName: string): Promise<boolean> => {
-    // 1. Local
     const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
     const updated = cached.map((c: Competitor) => c.id === id ? { ...c, name: newName } : c);
     localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(updated));
-
     if (isOfflineMode()) return true;
-
-    // 2. Remoto
-    try {
-      await supabase.from('competitors').update({ name: newName.trim() }).eq('id', id);
-    } catch (e) { console.error(e); }
+    try { await supabase.from('competitors').update({ name: newName.trim() }).eq('id', id); } catch (e) {}
     return true;
   },
 
   deleteCompetitor: async (id: string): Promise<boolean> => {
-    // 1. Local (Sempre tenta atualizar o cache local para consistência)
-    try {
-      const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
-      const filtered = cached.filter((c: Competitor) => c.id !== id);
-      localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(filtered));
-    } catch(e) { console.error("Erro cache local", e); }
-
+    const cached = JSON.parse(localStorage.getItem(LS_KEYS.COMPETITORS) || '[]');
+    const filtered = cached.filter((c: Competitor) => c.id !== id);
+    localStorage.setItem(LS_KEYS.COMPETITORS, JSON.stringify(filtered));
     if (isOfflineMode()) return true;
-
-    // 2. Remoto
-    try {
-      const { error } = await supabase.from('competitors').delete().eq('id', id);
-      if (error) {
-        console.error('Erro ao excluir do Supabase:', error);
-        return false;
-      }
-      return true;
-    } catch (e) { 
-      console.error('Exceção ao excluir:', e);
-      return false; 
-    }
+    try { await supabase.from('competitors').delete().eq('id', id); return true; } catch (e) { return false; }
   },
 
   deleteAllCompetitors: async (): Promise<boolean> => {
+      localStorage.setItem(LS_KEYS.COMPETITORS, '[]');
+      localStorage.setItem(LS_KEYS.MATCHES, '[]');
+      if (isOfflineMode()) return true;
       try {
-          // 1. Local
-          localStorage.setItem(LS_KEYS.COMPETITORS, '[]');
-          localStorage.removeItem(LS_KEYS.MATCHES);
-
-          if (isOfflineMode()) return true;
-
-          // 2. Remoto
-          const { error } = await supabase.from('competitors').delete().neq('id', '0');
-          // Também limpa matches
+          await supabase.from('competitors').delete().neq('id', '0');
           await supabase.from('matches').delete().neq('id', '0');
-          
-          if (error) throw error;
           return true;
-      } catch (e) {
-          console.error('Erro ao limpar tudo:', e);
-          return true;
-      }
+      } catch (e) { return true; }
   },
 
   seedDatabase: async (): Promise<void> => {
@@ -476,27 +233,26 @@ export const TournamentService = {
 
     const newComps: Competitor[] = [];
     const targetPool: number[] = [];
-    TARGET_CONFIGS.forEach(conf => {
-      for (let i = 0; i < conf.count; i++) targetPool.push(conf.points);
-    });
+    TARGET_CONFIGS.forEach(conf => { for (let i = 0; i < conf.count; i++) targetPool.push(conf.points); });
     const shuffle = (array: any[]) => array.sort(() => Math.random() - 0.5);
     const currentYear = new Date().getFullYear();
 
     for (const cat of cats) {
-        for (let i = 0; i < 5; i++) {
+        // Gera 20 participantes por categoria conforme solicitado
+        for (let i = 0; i < 20; i++) {
             const name = `${FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]}`;
-            const num = Math.floor(Math.random() * 900) + 100;
+            const num = 100 + i + (Math.floor(Math.random() * 800));
             const id = `${cat.prefix}${num}`;
-            const numHits = Math.floor(Math.random() * 5) + 3; 
+            const numHits = Math.floor(Math.random() * 7) + 1; 
             const hits = shuffle([...targetPool]).slice(0, numHits);
             
             newComps.push({
                 id,
                 name,
                 category: cat.name,
-                score: hits.reduce((a:number, b:number) => a+b, 0),
+                score: hits.reduce((a, b) => a + b, 0),
                 targetsHit: hits,
-                createdAt: Date.now(),
+                createdAt: Date.now() + i,
                 year: currentYear
             });
         }
@@ -514,10 +270,10 @@ export const TournamentService = {
             category: c.category,
             score: c.score,
             targets_hit: c.targetsHit,
-            created_at: new Date().toISOString(),
+            created_at: new Date(c.createdAt).toISOString(),
             year: c.year
         }));
         await supabase.from('competitors').insert(payload);
-    } catch (e) { console.warn('Seed salvo apenas localmente'); }
+    } catch (e) { console.warn('Erro ao inserir dados de teste remotamente'); }
   }
 };

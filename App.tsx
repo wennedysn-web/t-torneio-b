@@ -104,9 +104,9 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
     const [loading, setLoading] = useState(true);
   
     useEffect(() => {
-      TournamentService.getCategories().then(cats => {
+       TournamentService.getCategories().then(cats => {
           setCategories(cats);
-          if (cats.length > 0) setSelectedCategory('Livre');
+          if (cats.length > 0) setSelectedCategory(cats[0].name);
       });
     }, []);
   
@@ -340,6 +340,234 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
           </div>
         </div>
       </div>
+    );
+};
+
+// --- COMPONENTE DE GERENCIAMENTO AVANÇADO ---
+
+const ManageParticipantsPage: React.FC<{ year: number }> = ({ year }) => {
+    const [subView, setSubView] = useState<'comps' | 'cats' | 'system'>('comps');
+    const [competitors, setCompetitors] = useState<Competitor[]>([]);
+    const [categories, setCategories] = useState<CategoryDef[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
+    const [loading, setLoading] = useState(false);
+    
+    // Form nova categoria
+    const [newCatName, setNewCatName] = useState('');
+    const [newCatPrefix, setNewCatPrefix] = useState('');
+
+    const load = async () => {
+        setLoading(true);
+        const [allComps, allCats] = await Promise.all([
+            TournamentService.getAll(),
+            TournamentService.getCategories()
+        ]);
+        setCompetitors(allComps.filter(c => c.year === year));
+        setCategories(allCats);
+        setLoading(false);
+    };
+
+    useEffect(() => { load(); }, [year]);
+
+    const handleSaveName = async (id: string) => {
+        if (!editName.trim()) return;
+        await TournamentService.updateName(id, editName);
+        setEditingId(null);
+        load();
+    };
+
+    const handleAddCategory = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newCatName || !newCatPrefix) return;
+        await TournamentService.addCategory(newCatName, newCatPrefix);
+        setNewCatName('');
+        setNewCatPrefix('');
+        load();
+    };
+
+    const handleSeedData = async () => {
+        if (!confirm('Gerar 20 dados de teste por categoria?')) return;
+        setLoading(true);
+        await TournamentService.seedDatabase();
+        await load();
+        alert('Dados gerados com sucesso!');
+    };
+
+    const handleClearAll = async () => {
+        if (!confirm('EXCLUIR TODOS OS REGISTROS? Esta ação é irreversível e afetará todos os anos e chaves.')) return;
+        setLoading(true);
+        await TournamentService.deleteAllCompetitors();
+        await load();
+        alert('Todos os dados foram removidos.');
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto p-4 sm:p-10 space-y-8">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                <h1 className="text-4xl font-black text-slate-100 flex items-center gap-5 uppercase tracking-tighter">
+                    <Settings className="w-10 h-10 text-wood-500" /> Painel Gestão
+                </h1>
+
+                <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 shadow-2xl shrink-0">
+                    <button 
+                        onClick={() => setSubView('comps')}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest ${subView === 'comps' ? 'bg-slate-800 text-wood-500 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <Users className="w-4 h-4" /> Participantes
+                    </button>
+                    <button 
+                        onClick={() => setSubView('cats')}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest ${subView === 'cats' ? 'bg-slate-800 text-wood-500 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <Tag className="w-4 h-4" /> Categorias
+                    </button>
+                    <button 
+                        onClick={() => setSubView('system')}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest ${subView === 'system' ? 'bg-slate-800 text-wood-500 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <Database className="w-4 h-4" /> Sistema
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-slate-900 rounded-[40px] border border-slate-800 p-8 shadow-2xl min-h-[400px]">
+                {loading && <div className="absolute inset-0 z-10 bg-slate-950/50 flex items-center justify-center rounded-[40px]"><RefreshCw className="w-12 h-12 animate-spin text-wood-500" /></div>}
+                
+                {subView === 'comps' && (
+                    <div className="space-y-6 animate-in fade-in duration-500">
+                        <div className="relative">
+                            <Search className="absolute left-6 top-6 text-slate-600" />
+                            <input 
+                                type="text" placeholder="BUSCAR POR NOME OU FICHA..." 
+                                value={searchTerm} onChange={e => setSearchTerm(e.target.value)} 
+                                className="w-full bg-slate-950 border border-slate-800 rounded-[25px] py-6 px-16 text-slate-100 font-black uppercase outline-none focus:border-wood-600 transition-colors" 
+                            />
+                        </div>
+                        
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4 custom-scroll">
+                            {competitors.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.id.toLowerCase().includes(searchTerm.toLowerCase())).map(c => (
+                                <div key={c.id} className="p-6 bg-slate-950/50 border border-slate-800 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-4 group">
+                                    <div className="flex gap-5 items-center flex-1">
+                                        <div className="text-wood-500 font-black font-mono bg-wood-600/10 px-4 py-2 rounded-xl border border-wood-600/20">{c.id}</div>
+                                        {editingId === c.id ? (
+                                            <input 
+                                                type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                                                className="bg-slate-900 border border-wood-600 rounded-xl px-4 py-2 text-slate-100 font-black uppercase outline-none flex-1"
+                                                autoFocus
+                                            />
+                                        ) : (
+                                            <div className="text-left">
+                                                <div className="text-slate-100 font-black text-lg uppercase">{c.name}</div>
+                                                <div className="text-[10px] text-slate-600 uppercase font-black">{c.category}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {editingId === c.id ? (
+                                            <>
+                                                <button onClick={() => handleSaveName(c.id)} className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"><Check className="w-5 h-5" /></button>
+                                                <button onClick={() => setEditingId(null)} className="p-3 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700 transition-colors"><X className="w-5 h-5" /></button>
+                                            </>
+                                        ) : (
+                                            <button 
+                                                onClick={() => { setEditingId(c.id); setEditName(c.name); }} 
+                                                className="p-3 text-slate-600 hover:text-wood-500 transition-colors"
+                                                title="Editar Nome"
+                                            >
+                                                <Edit2 className="w-5 h-5" />
+                                            </button>
+                                        )}
+                                        <button 
+                                            onClick={async () => { if(confirm('Excluir participante?')) { await TournamentService.deleteCompetitor(c.id); load(); } }} 
+                                            className="p-3 text-slate-700 hover:text-red-500 transition-colors"
+                                            title="Excluir"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {competitors.length === 0 && <div className="text-center py-20 text-slate-700 uppercase font-black tracking-widest text-xs">Nenhum participante encontrado</div>}
+                        </div>
+                    </div>
+                )}
+
+                {subView === 'cats' && (
+                    <div className="space-y-10 animate-in fade-in duration-500">
+                        <form onSubmit={handleAddCategory} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <input 
+                                type="text" placeholder="NOME DA CATEGORIA" value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                                className="bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-slate-100 font-black uppercase outline-none focus:border-wood-600"
+                            />
+                            <input 
+                                type="text" placeholder="PREFIXO (EX: L)" maxLength={2} value={newCatPrefix} onChange={e => setNewCatPrefix(e.target.value)}
+                                className="bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-slate-100 font-black uppercase outline-none focus:border-wood-600"
+                            />
+                            <button type="submit" className="bg-wood-600 hover:bg-wood-700 text-white font-black rounded-2xl uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3">
+                                <Plus className="w-5 h-5" /> Adicionar
+                            </button>
+                        </form>
+
+                        <div className="grid gap-4">
+                            {categories.map(cat => (
+                                <div key={cat.id} className="p-6 bg-slate-950/50 border border-slate-800 rounded-3xl flex justify-between items-center group">
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center font-black text-wood-500 border border-slate-800">{cat.prefix}</div>
+                                        <div className="text-xl font-black text-slate-100 uppercase">{cat.name}</div>
+                                    </div>
+                                    <button 
+                                        onClick={async () => { if(confirm(`Excluir categoria ${cat.name}?`)) { await TournamentService.deleteCategory(cat.id!); load(); } }}
+                                        className="p-4 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                    >
+                                        <Trash2 className="w-6 h-6" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {subView === 'system' && (
+                    <div className="flex flex-col items-center justify-center py-10 space-y-8 animate-in fade-in duration-500">
+                        <div className="text-center max-w-sm space-y-4">
+                            <Database className="w-20 h-20 text-slate-800 mx-auto mb-6" />
+                            <h3 className="text-xl font-black text-slate-100 uppercase">Ferramentas de Sistema</h3>
+                            <p className="text-slate-500 text-sm font-medium">Use estas ferramentas para testes rápidos ou limpeza total do banco de dados.</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-lg">
+                            <button 
+                                onClick={handleSeedData}
+                                className="flex flex-col items-center gap-4 p-8 bg-slate-950 border border-slate-800 rounded-[32px] hover:border-wood-600 transition-all group active:scale-95"
+                            >
+                                <div className="p-4 bg-wood-600/10 text-wood-500 rounded-2xl group-hover:bg-wood-600 group-hover:text-white transition-all">
+                                    <Zap className="w-8 h-8" />
+                                </div>
+                                <div className="text-center">
+                                    <span className="block font-black text-slate-100 uppercase text-xs mb-1">Dados de Teste</span>
+                                    <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Gera 20 por categoria</span>
+                                </div>
+                            </button>
+
+                            <button 
+                                onClick={handleClearAll}
+                                className="flex flex-col items-center gap-4 p-8 bg-slate-950 border border-slate-800 rounded-[32px] hover:border-red-600 transition-all group active:scale-95"
+                            >
+                                <div className="p-4 bg-red-600/10 text-red-500 rounded-2xl group-hover:bg-red-600 group-hover:text-white transition-all">
+                                    <Trash2 className="w-8 h-8" />
+                                </div>
+                                <div className="text-center">
+                                    <span className="block font-black text-slate-100 uppercase text-xs mb-1">Limpeza Total</span>
+                                    <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Exclui todos os dados</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 };
 
@@ -763,11 +991,6 @@ const MataMataManager: React.FC<{ year: number }> = ({ year }) => {
         setLoading(true);
         const allMatches = await TournamentService.getMatches();
         const prefix = `${selectedCategory}-${year}`;
-        // Para cada match da categoria atual, deletamos individualmente ou limpamos os resultados
-        // Como o Supabase delete global está disponível no service:
-        // Porém o service deleta TUDO. Vamos filtrar e remover apenas desta categoria/ano se possível.
-        // Como não temos um endpoint específico para "delete by prefix", usaremos o upsert com nulos para cada match carregado.
-        
         const matchesToReset = allMatches.filter(m => m.id.startsWith(prefix));
         for (const m of matchesToReset) {
             await TournamentService.saveMatch({
@@ -818,7 +1041,6 @@ const MataMataManager: React.FC<{ year: number }> = ({ year }) => {
                     onClick={handleResetAll}
                     className="flex items-center gap-3 px-8 py-4 bg-red-950/20 border border-red-900/30 text-red-500 hover:bg-red-900/40 rounded-2xl transition-all font-black text-[10px] uppercase tracking-widest group shadow-2xl"
                 >
-                    {/* Fixed typo: changed RefreshCcw to RefreshCw */}
                     <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
                     Resetar Tudo
                 </button>
@@ -1079,37 +1301,6 @@ const WelcomeYearModal: React.FC<{ onSelect: (year: number) => void }> = ({ onSe
        </div>
     </div>
   );
-};
-
-const ManageParticipantsPage: React.FC<{ year: number }> = ({ year }) => {
-    const [competitors, setCompetitors] = useState<Competitor[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-  
-    const load = async () => {
-        const all = await TournamentService.getAll();
-        setCompetitors(all.filter(c => c.year === year));
-    };
-    useEffect(() => { load(); }, [year]);
-
-    return (
-        <div className="max-w-4xl mx-auto p-4 sm:p-10">
-            <h1 className="text-4xl font-black text-slate-100 mb-10 flex items-center gap-5 uppercase tracking-tighter"><Users className="w-10 h-10 text-wood-500" /> Gestão</h1>
-            <div className="bg-slate-900 rounded-[40px] border border-slate-800 p-8 shadow-2xl">
-                <input type="text" placeholder="BUSCAR..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-[25px] py-6 px-8 text-slate-100 font-black uppercase mb-8" />
-                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4">
-                    {competitors.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(c => (
-                        <div key={c.id} className="p-5 bg-slate-950/50 border border-slate-800 rounded-3xl flex justify-between items-center">
-                            <div className="flex gap-5 items-center">
-                                <div className="text-wood-500 font-black font-mono bg-wood-600/10 px-4 py-2 rounded-xl border border-wood-600/20">{c.id}</div>
-                                <div className="text-slate-100 font-black text-lg uppercase">{c.name}</div>
-                            </div>
-                            <button onClick={async () => { if(confirm('EXCLUIR?')) { await TournamentService.deleteCompetitor(c.id); load(); } }} className="text-slate-700 hover:text-red-500"><Trash2 className="w-6 h-6" /></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
 };
 
 const App: React.FC = () => {
