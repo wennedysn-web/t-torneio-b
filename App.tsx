@@ -35,7 +35,7 @@ const sortCompetitors = (competitors: Competitor[]) => {
 // --- BRACKET UI COMPONENTS ---
 
 const MatchCard: React.FC<{ p1?: Competitor, p2?: Competitor, score1?: number, score2?: number, winnerId?: string | null }> = ({ p1, p2, score1, score2, winnerId }) => (
-  <div className="w-56 h-20 flex flex-col bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden shadow-2xl backdrop-blur-sm shrink-0">
+  <div className="w-48 h-20 flex flex-col bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden shadow-2xl backdrop-blur-sm shrink-0">
     <div className={`flex items-center justify-between px-3 h-10 border-b border-slate-800/50 ${winnerId === p1?.id && p1 ? 'bg-wood-600/10' : ''}`}>
       <span className={`text-[11px] font-bold truncate flex-1 uppercase tracking-tight ${p1 ? 'text-slate-100' : 'text-slate-600 italic'}`}>
         {p1 ? p1.name : 'TBD'}
@@ -53,23 +53,23 @@ const MatchCard: React.FC<{ p1?: Competitor, p2?: Competitor, score1?: number, s
 
 const SVGConnector: React.FC<{ height: number, type: 'join' | 'straight' }> = ({ height, type }) => (
   <div className="flex items-center shrink-0" style={{ height }}>
-    <svg width="40" height={height} viewBox={`0 0 40 ${height}`} fill="none" className="overflow-visible">
+    <svg width="30" height={height} viewBox={`0 0 30 ${height}`} fill="none" className="overflow-visible">
       {type === 'join' ? (
         <path 
-          d={`M 0 ${height * 0.25} L 20 ${height * 0.25} L 20 ${height * 0.75} L 0 ${height * 0.75} M 20 ${height * 0.5} L 40 ${height * 0.5}`} 
+          d={`M 0 ${height * 0.25} L 15 ${height * 0.25} L 15 ${height * 0.75} L 0 ${height * 0.75} M 15 ${height * 0.5} L 30 ${height * 0.5}`} 
           stroke="#334155" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
         />
       ) : (
-        <path d={`M 0 ${height/2} L 40 ${height/2}`} stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+        <path d={`M 0 ${height/2} L 30 ${height/2}`} stroke="#334155" strokeWidth="2" strokeLinecap="round" />
       )}
     </svg>
   </div>
 );
 
 const RoundHeader: React.FC<{ title: string }> = ({ title }) => (
-  <div className="mb-10 text-center">
-    <div className="inline-block px-5 py-2 rounded-xl bg-slate-900 border border-slate-800 shadow-xl">
-      <h6 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">
+  <div className="mb-4 text-center">
+    <div className="inline-block px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 shadow-xl">
+      <h6 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">
         {title}
       </h6>
     </div>
@@ -132,7 +132,7 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
     );
 
     const isLivre = selectedCategory === 'Livre';
-    const bracketHeight = isLivre ? 1100 : 400;
+    const bracketHeight = isLivre ? 750 : 350;
 
     const livreSeeds = [
       [0, 15], [7, 8], [4, 11], [3, 12],
@@ -144,25 +144,25 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
     ];
 
     return (
-      <div className="max-w-[1500px] mx-auto p-4 sm:p-8">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-8">
-          <div className="flex items-center gap-6">
-             <div className="w-16 h-16 bg-wood-600 rounded-[24px] flex items-center justify-center shadow-2xl shadow-wood-900/40 rotate-3">
-                <GitMerge className="w-8 h-8 text-white -rotate-3" />
+      <div className="max-w-[1500px] mx-auto p-4 sm:p-4">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+          <div className="flex items-center gap-4">
+             <div className="w-12 h-12 bg-wood-600 rounded-[16px] flex items-center justify-center shadow-2xl shadow-wood-900/40 rotate-3">
+                <GitMerge className="w-6 h-6 text-white -rotate-3" />
              </div>
              <div>
-                <h1 className="text-4xl font-black text-slate-100 uppercase tracking-tighter">Chaveamento</h1>
+                <h1 className="text-3xl font-black text-slate-100 uppercase tracking-tighter">Chaveamento</h1>
                 <div className="flex items-center gap-2">
                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                   <p className="text-slate-500 font-bold text-[10px] uppercase tracking-widest">Tempo Real • {selectedCategory}</p>
+                   <p className="text-slate-500 font-bold text-[9px] uppercase tracking-widest">Tempo Real • {selectedCategory}</p>
                 </div>
              </div>
           </div>
-          <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 shadow-2xl overflow-x-auto no-scrollbar">
+          <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 shadow-2xl overflow-x-auto no-scrollbar">
             {categories.map(c => (
               <button 
                 key={c.id} onClick={() => setSelectedCategory(c.name)}
-                className={`px-8 py-3 rounded-xl font-black text-[11px] transition-all uppercase tracking-widest whitespace-nowrap ${selectedCategory === c.name ? 'bg-wood-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`px-5 py-2 rounded-lg font-black text-[10px] transition-all uppercase tracking-widest whitespace-nowrap ${selectedCategory === c.name ? 'bg-wood-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
               >
                 {c.name}
               </button>
@@ -170,11 +170,11 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
           </div>
         </div>
 
-        <div className="overflow-x-auto pb-24 no-scrollbar">
-          <div className="flex items-start justify-start min-w-[1000px] px-10 gap-0" style={{ height: bracketHeight + 100 }}>
+        <div className="overflow-x-auto pb-12 no-scrollbar">
+          <div className="flex items-start justify-start min-w-[900px] px-4 gap-0" style={{ height: bracketHeight + 80 }}>
             {isLivre && (
               <>
-                <div className="flex flex-col w-56">
+                <div className="flex flex-col w-48">
                   <RoundHeader title="Oitavas de Final" />
                   <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
                     {livreSeeds.map((pair, i) => (
@@ -182,7 +182,7 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
+                <div className="flex flex-col justify-around pt-[40px]" style={{ height: bracketHeight + 40 }}>
                   {[0, 1, 2, 3].map(i => <SVGConnector key={i} height={bracketHeight/4} type="join" />)}
                 </div>
               </>
@@ -190,7 +190,7 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
 
             {isLivre && (
               <>
-                <div className="flex flex-col w-56">
+                <div className="flex flex-col w-48">
                   <RoundHeader title="Quartas de Final" />
                   <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
                     {[0, 1, 2, 3].map(i => (
@@ -202,13 +202,13 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
+                <div className="flex flex-col justify-around pt-[40px]" style={{ height: bracketHeight + 40 }}>
                   {[0, 1].map(i => <SVGConnector key={i} height={bracketHeight/2} type="join" />)}
                 </div>
               </>
             )}
 
-            <div className="flex flex-col w-56">
+            <div className="flex flex-col w-48">
               <RoundHeader title="Semi-Final" />
               <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
                 {isLivre ? (
@@ -227,11 +227,11 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
               </div>
             </div>
 
-            <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
+            <div className="flex flex-col justify-around pt-[40px]" style={{ height: bracketHeight + 40 }}>
                <SVGConnector height={bracketHeight} type="join" />
             </div>
 
-            <div className="flex flex-col w-56">
+            <div className="flex flex-col w-48">
               <RoundHeader title="Grande Final" />
               <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
                   <MatchCard 
@@ -241,22 +241,22 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
               </div>
             </div>
 
-            <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
-               <SVGConnector height={80} type="straight" />
+            <div className="flex flex-col justify-around pt-[40px]" style={{ height: bracketHeight + 40 }}>
+               <SVGConnector height={60} type="straight" />
             </div>
 
-            <div className="flex flex-col w-64 pt-12 items-center">
+            <div className="flex flex-col w-56 pt-8 items-center">
               <RoundHeader title="Campeão" />
               <div className="flex flex-col justify-center items-center" style={{ height: bracketHeight }}>
-                <div className="relative mb-10">
-                  <div className="absolute inset-0 bg-wood-500/20 blur-[40px] rounded-full"></div>
-                  <div className="relative bg-slate-900 border-2 border-wood-500 w-28 h-28 rounded-[36px] flex items-center justify-center shadow-2xl rotate-12 group hover:rotate-0 transition-all duration-500">
-                     <Trophy className="w-14 h-14 text-wood-500" />
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 bg-wood-500/20 blur-[30px] rounded-full"></div>
+                  <div className="relative bg-slate-900 border-2 border-wood-500 w-20 h-20 rounded-[24px] flex items-center justify-center shadow-2xl rotate-12 group hover:rotate-0 transition-all duration-500">
+                     <Trophy className="w-10 h-10 text-wood-500" />
                   </div>
                 </div>
-                <div className="text-center w-full px-4">
-                  <div className="bg-wood-600 px-6 py-5 rounded-[24px] shadow-[0_10px_40px_rgba(166,114,67,0.4)] border border-wood-400/30">
-                    <span className="text-xl font-black text-white uppercase tracking-tighter block truncate">
+                <div className="text-center w-full px-2">
+                  <div className="bg-wood-600 px-4 py-3 rounded-[16px] shadow-[0_10px_30px_rgba(166,114,67,0.4)] border border-wood-400/30">
+                    <span className="text-sm font-black text-white uppercase tracking-tighter block truncate">
                         {getCompetitor(getMatchData('F', 0)?.winnerId)?.name || '????'}
                     </span>
                   </div>
