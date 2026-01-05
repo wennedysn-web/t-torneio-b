@@ -4,7 +4,7 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase, MatchResult } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2 } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2, Hash, Zap } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -633,7 +633,228 @@ const RegistrationPage: React.FC<{ year: number }> = ({ year }) => {
   );
 };
 
+// --- COMPONENTE DE GERENCIAMENTO DE MATA-MATA ---
+
+const MataMataManager: React.FC<{ year: number }> = ({ year }) => {
+    const [selectedCategory, setSelectedCategory] = useState('Livre');
+    const [categories, setCategories] = useState<CategoryDef[]>([]);
+    const [matches, setMatches] = useState<MatchResult[]>([]);
+    const [qualifiers, setQualifiers] = useState<Competitor[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const loadData = async () => {
+        setLoading(true);
+        const [cats, allComps, allMatches] = await Promise.all([
+            TournamentService.getCategories(),
+            TournamentService.getAll(),
+            TournamentService.getMatches()
+        ]);
+        
+        setCategories(cats);
+        const filteredComps = allComps.filter(c => c.category === selectedCategory && c.year === year);
+        
+        // Melhores scores únicos por pessoa
+        const bestScoresMap = new Map<string, Competitor>();
+        filteredComps.forEach(c => {
+            const key = c.name.toLowerCase();
+            const currentBest = bestScoresMap.get(key);
+            if (!currentBest || compareCompetitors(c, currentBest) < 0) bestScoresMap.set(key, c);
+        });
+        
+        const sorted = sortCompetitors(Array.from(bestScoresMap.values()));
+        const isLivre = selectedCategory === 'Livre';
+        setQualifiers(sorted.slice(0, isLivre ? 16 : 4));
+        setMatches(allMatches.filter(m => m.id.startsWith(`${selectedCategory}-${year}`)));
+        setLoading(false);
+    };
+
+    useEffect(() => { loadData(); }, [selectedCategory, year]);
+
+    const handleSaveResult = async (matchId: string, p1Id: string, p2Id: string, s1: number, s2: number, winnerId: string | null) => {
+        const match: MatchResult = {
+            id: matchId,
+            p1Id,
+            p2Id,
+            score1: s1,
+            score2: s2,
+            winnerId,
+            timestamp: Date.now()
+        };
+        await TournamentService.saveMatch(match);
+        loadData();
+    };
+
+    const getMatchData = (phase: string, idx: number) => matches.find(m => m.id === `${selectedCategory}-${year}-${phase}-${idx}`);
+    const getComp = (id?: string) => qualifiers.find(c => c.id === id);
+
+    // Definição das fases
+    const livreRounds = [
+        { title: 'Oitavas de Final', code: 'R16', count: 8, seeds: [[0, 15], [7, 8], [4, 11], [3, 12], [1, 14], [6, 9], [5, 10], [2, 13]], prev: null },
+        { title: 'Quartas de Final', code: 'QF', count: 4, seeds: null, prev: 'R16' },
+        { title: 'Semi-Final', code: 'SF', count: 2, seeds: null, prev: 'QF' },
+        { title: 'Grande Final', code: 'F', count: 1, seeds: null, prev: 'SF' }
+    ];
+
+    const otherRounds = [
+        { title: 'Semi-Final', code: 'SF', count: 2, seeds: [[0, 3], [1, 2]], prev: null },
+        { title: 'Grande Final', code: 'F', count: 1, seeds: null, prev: 'SF' }
+    ];
+
+    const rounds = selectedCategory === 'Livre' ? livreRounds : otherRounds;
+
+    return (
+        <div className="space-y-12">
+            <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 shadow-2xl overflow-x-auto no-scrollbar">
+                {categories.map(c => (
+                    <button 
+                        key={c.id} onClick={() => setSelectedCategory(c.name)}
+                        className={`px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest whitespace-nowrap ${selectedCategory === c.name ? 'bg-wood-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        {c.name}
+                    </button>
+                ))}
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center p-20"><RefreshCw className="w-10 h-10 animate-spin text-wood-500" /></div>
+            ) : (
+                <div className="space-y-16">
+                    {rounds.map((round) => (
+                        <div key={round.code} className="space-y-6">
+                            <div className="flex items-center gap-4">
+                                <div className="h-px flex-1 bg-slate-800"></div>
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">{round.title}</h3>
+                                <div className="h-px flex-1 bg-slate-800"></div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {Array.from({ length: round.count }).map((_, i) => {
+                                    const matchId = `${selectedCategory}-${year}-${round.code}-${i}`;
+                                    const currentMatch = getMatchData(round.code, i);
+                                    
+                                    let p1: Competitor | undefined;
+                                    let p2: Competitor | undefined;
+
+                                    if (round.prev === null) {
+                                        // Primeira rodada - busca nos classificados
+                                        p1 = qualifiers[round.seeds![i][0]];
+                                        p2 = qualifiers[round.seeds![i][1]];
+                                    } else {
+                                        // Rodadas subsequentes - busca vencedores da anterior
+                                        p1 = getComp(getMatchData(round.prev, i * 2)?.winnerId);
+                                        p2 = getComp(getMatchData(round.prev, i * 2 + 1)?.winnerId);
+                                    }
+
+                                    return (
+                                        <MatchManagerCard 
+                                            key={matchId}
+                                            id={matchId}
+                                            p1={p1}
+                                            p2={p2}
+                                            initialS1={currentMatch?.score1 || 0}
+                                            initialS2={currentMatch?.score2 || 0}
+                                            initialWinnerId={currentMatch?.winnerId || null}
+                                            onSave={handleSaveResult}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const MatchManagerCard: React.FC<{ 
+    id: string, p1?: Competitor, p2?: Competitor, initialS1: number, initialS2: number, initialWinnerId: string | null,
+    onSave: (id: string, p1Id: string, p2Id: string, s1: number, s2: number, winnerId: string | null) => void 
+}> = ({ id, p1, p2, initialS1, initialS2, initialWinnerId, onSave }) => {
+    const [s1, setS1] = useState(initialS1);
+    const [s2, setS2] = useState(initialS2);
+    const [winnerId, setWinnerId] = useState<string | null>(initialWinnerId);
+    const [hasChanged, setHasChanged] = useState(false);
+
+    useEffect(() => {
+        setS1(initialS1);
+        setS2(initialS2);
+        setWinnerId(initialWinnerId);
+        setHasChanged(false);
+    }, [initialS1, initialS2, initialWinnerId]);
+
+    const handleS1Change = (val: number) => { setS1(val); setHasChanged(true); };
+    const handleS2Change = (val: number) => { setS2(val); setHasChanged(true); };
+    const handleSetWinner = (id: string | null) => { setWinnerId(id); setHasChanged(true); };
+
+    if (!p1 && !p2) return (
+        <div className="bg-slate-900/30 border border-slate-800/50 p-6 rounded-[28px] opacity-40 flex items-center justify-center italic text-slate-600 text-xs">
+            Aguardando definição dos confrontos anteriores...
+        </div>
+    );
+
+    return (
+        <div className={`bg-slate-900 border-2 rounded-[32px] p-6 transition-all shadow-xl ${hasChanged ? 'border-wood-500 shadow-wood-900/10' : 'border-slate-800'}`}>
+            <div className="space-y-6">
+                {/* Jogador 1 */}
+                <div className={`flex items-center gap-4 p-4 rounded-2xl transition-all ${winnerId === p1?.id ? 'bg-wood-600/10 border border-wood-500/20' : 'bg-slate-950 border border-slate-800'}`}>
+                    <div className="flex-1 flex flex-col">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Competidor A</span>
+                        <span className="text-sm font-black text-slate-100 uppercase truncate">{p1?.name || 'TBD'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="number" value={s1} onChange={e => handleS1Change(parseInt(e.target.value) || 0)}
+                            className="w-16 bg-slate-900 border border-slate-800 rounded-xl px-2 py-3 text-center font-black text-wood-500 outline-none focus:border-wood-500"
+                        />
+                        <button 
+                            onClick={() => handleSetWinner(p1?.id || null)}
+                            className={`p-3 rounded-xl transition-all ${winnerId === p1?.id ? 'bg-wood-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}
+                        >
+                            <Trophy className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex justify-center -my-3 relative z-10">
+                    <div className="bg-slate-900 px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest italic">Versus</div>
+                </div>
+
+                {/* Jogador 2 */}
+                <div className={`flex items-center gap-4 p-4 rounded-2xl transition-all ${winnerId === p2?.id ? 'bg-wood-600/10 border border-wood-500/20' : 'bg-slate-950 border border-slate-800'}`}>
+                    <div className="flex-1 flex flex-col">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Competidor B</span>
+                        <span className="text-sm font-black text-slate-100 uppercase truncate">{p2?.name || 'TBD'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="number" value={s2} onChange={e => handleS2Change(parseInt(e.target.value) || 0)}
+                            className="w-16 bg-slate-900 border border-slate-800 rounded-xl px-2 py-3 text-center font-black text-wood-500 outline-none focus:border-wood-500"
+                        />
+                        <button 
+                            onClick={() => handleSetWinner(p2?.id || null)}
+                            className={`p-3 rounded-xl transition-all ${winnerId === p2?.id ? 'bg-wood-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}
+                        >
+                            <Trophy className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+
+                {hasChanged && (
+                    <button 
+                        onClick={() => onSave(id, p1?.id || '', p2?.id || '', s1, s2, winnerId)}
+                        className="w-full py-4 bg-wood-600 hover:bg-wood-700 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-wood-900/30 flex items-center justify-center gap-3 animate-in fade-in duration-300"
+                    >
+                        <Save className="w-4 h-4" /> Atualizar Resultado
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
+    const [subTab, setSubTab] = useState<'lancamentos' | 'matamata'>('lancamentos');
     const [searchTerm, setSearchTerm] = useState('');
     const [selected, setSelected] = useState<Competitor | null>(null);
     const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -654,36 +875,64 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
     };
 
     return (
-        <div className="max-w-4xl mx-auto p-4 sm:p-10">
-            <h1 className="text-4xl font-black text-slate-100 mb-10 flex items-center gap-5 uppercase tracking-tighter"><Target className="w-10 h-10 text-wood-500" /> Lançamento</h1>
-            {!selected ? (
-                <div className="relative">
-                    <Search className="absolute left-6 top-6 text-slate-600" />
-                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-16 pr-8 py-6 rounded-[30px] bg-slate-900 border border-slate-800 text-slate-100 font-black text-xl uppercase tracking-tight outline-none" placeholder="BUSCAR FICHA OU NOME..." />
-                    {searchTerm && (
-                        <div className="mt-6 space-y-3">
-                            {filtered.map(c => (
-                                <button key={c.id} onClick={() => setSelected(c)} className="w-full p-6 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-3xl flex justify-between items-center transition-all">
-                                    <div className="flex gap-5 items-center">
-                                        <div className="text-wood-600 font-black font-mono bg-wood-600/10 px-4 py-2 rounded-xl border border-wood-600/20">{c.id}</div>
-                                        <div className="text-left">
-                                            <div className="text-slate-100 font-black text-lg uppercase">{c.name}</div>
-                                            <div className="text-[10px] text-slate-500 uppercase font-black">{c.category}</div>
-                                        </div>
-                                    </div>
-                                    <ArrowRight className="text-slate-700" />
-                                </button>
-                            ))}
+        <div className="max-w-5xl mx-auto p-4 sm:p-10">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+                <h1 className="text-4xl font-black text-slate-100 flex items-center gap-5 uppercase tracking-tighter">
+                    <Target className="w-10 h-10 text-wood-500" /> Pontuação
+                </h1>
+
+                <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 shadow-2xl shrink-0">
+                    <button 
+                        onClick={() => setSubTab('lancamentos')}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest ${subTab === 'lancamentos' ? 'bg-slate-800 text-wood-500 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <Zap className="w-4 h-4" /> Lançamentos
+                    </button>
+                    <button 
+                        onClick={() => setSubTab('matamata')}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest ${subTab === 'matamata' ? 'bg-slate-800 text-wood-500 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <GitMerge className="w-4 h-4" /> Mata-Mata
+                    </button>
+                </div>
+            </div>
+
+            {subTab === 'lancamentos' ? (
+                <>
+                    {!selected ? (
+                        <div className="relative">
+                            <Search className="absolute left-6 top-6 text-slate-600" />
+                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-16 pr-8 py-6 rounded-[30px] bg-slate-900 border border-slate-800 text-slate-100 font-black text-xl uppercase tracking-tight outline-none" placeholder="BUSCAR FICHA OU NOME..." />
+                            {searchTerm && (
+                                <div className="mt-6 space-y-3">
+                                    {filtered.map(c => (
+                                        <button key={c.id} onClick={() => setSelected(c)} className="w-full p-6 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-3xl flex justify-between items-center transition-all">
+                                            <div className="flex gap-5 items-center">
+                                                <div className="text-wood-600 font-black font-mono bg-wood-600/10 px-4 py-2 rounded-xl border border-wood-600/20">{c.id}</div>
+                                                <div className="text-left">
+                                                    <div className="text-slate-100 font-black text-lg uppercase">{c.name}</div>
+                                                    <div className="text-[10px] text-slate-500 uppercase font-black">{c.category}</div>
+                                                </div>
+                                            </div>
+                                            <ArrowRight className="text-slate-700" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div>
+                            <button onClick={() => setSelected(null)} className="text-slate-500 hover:text-wood-500 font-black text-xs uppercase mb-10 flex items-center gap-2"><RotateCcw className="w-4 h-4" /> VOLTAR</button>
+                            <TargetBoard initialTargets={selected.targetsHit} onScoreConfirm={async (t) => {
+                                await TournamentService.updateScore(selected.id, t);
+                                await handleScoreSuccess();
+                            }} />
                         </div>
                     )}
-                </div>
+                </>
             ) : (
-                <div>
-                    <button onClick={() => setSelected(null)} className="text-slate-500 hover:text-wood-500 font-black text-xs uppercase mb-10 flex items-center gap-2"><RotateCcw className="w-4 h-4" /> VOLTAR</button>
-                    <TargetBoard initialTargets={selected.targetsHit} onScoreConfirm={async (t) => {
-                        await TournamentService.updateScore(selected.id, t);
-                        await handleScoreSuccess();
-                    }} />
+                <div className="animate-in fade-in slide-in-from-right-10 duration-500">
+                    <MataMataManager year={year} />
                 </div>
             )}
         </div>
