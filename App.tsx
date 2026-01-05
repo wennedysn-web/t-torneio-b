@@ -4,7 +4,7 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase, MatchResult } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2, Hash, Zap } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2, Hash, Zap, RefreshCcw } from 'lucide-react';
 
 // --- UTILS ---
 
@@ -653,7 +653,6 @@ const MataMataManager: React.FC<{ year: number }> = ({ year }) => {
         setCategories(cats);
         const filteredComps = allComps.filter(c => c.category === selectedCategory && c.year === year);
         
-        // Melhores scores únicos por pessoa
         const bestScoresMap = new Map<string, Competitor>();
         filteredComps.forEach(c => {
             const key = c.name.toLowerCase();
@@ -684,10 +683,35 @@ const MataMataManager: React.FC<{ year: number }> = ({ year }) => {
         loadData();
     };
 
+    const handleResetAll = async () => {
+        if (!confirm(`Deseja realmente RESETAR TODOS os confrontos da categoria ${selectedCategory}? Esta ação é irreversível.`)) return;
+        
+        setLoading(true);
+        const allMatches = await TournamentService.getMatches();
+        const prefix = `${selectedCategory}-${year}`;
+        // Para cada match da categoria atual, deletamos individualmente ou limpamos os resultados
+        // Como o Supabase delete global está disponível no service:
+        // Porém o service deleta TUDO. Vamos filtrar e remover apenas desta categoria/ano se possível.
+        // Como não temos um endpoint específico para "delete by prefix", usaremos o upsert com nulos para cada match carregado.
+        
+        const matchesToReset = allMatches.filter(m => m.id.startsWith(prefix));
+        for (const m of matchesToReset) {
+            await TournamentService.saveMatch({
+                ...m,
+                score1: 0,
+                score2: 0,
+                winnerId: null,
+                timestamp: Date.now()
+            });
+        }
+        
+        await loadData();
+        alert('Confrontos resetados com sucesso!');
+    };
+
     const getMatchData = (phase: string, idx: number) => matches.find(m => m.id === `${selectedCategory}-${year}-${phase}-${idx}`);
     const getComp = (id?: string) => qualifiers.find(c => c.id === id);
 
-    // Definição das fases
     const livreRounds = [
         { title: 'Oitavas de Final', code: 'R16', count: 8, seeds: [[0, 15], [7, 8], [4, 11], [3, 12], [1, 14], [6, 9], [5, 10], [2, 13]], prev: null },
         { title: 'Quartas de Final', code: 'QF', count: 4, seeds: null, prev: 'R16' },
@@ -704,15 +728,25 @@ const MataMataManager: React.FC<{ year: number }> = ({ year }) => {
 
     return (
         <div className="space-y-12">
-            <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 shadow-2xl overflow-x-auto no-scrollbar">
-                {categories.map(c => (
-                    <button 
-                        key={c.id} onClick={() => setSelectedCategory(c.name)}
-                        className={`px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest whitespace-nowrap ${selectedCategory === c.name ? 'bg-wood-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        {c.name}
-                    </button>
-                ))}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-6">
+                <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 shadow-2xl overflow-x-auto no-scrollbar flex-1 w-full">
+                    {categories.map(c => (
+                        <button 
+                            key={c.id} onClick={() => setSelectedCategory(c.name)}
+                            className={`px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest whitespace-nowrap ${selectedCategory === c.name ? 'bg-wood-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            {c.name}
+                        </button>
+                    ))}
+                </div>
+                
+                <button 
+                    onClick={handleResetAll}
+                    className="flex items-center gap-3 px-8 py-4 bg-red-950/20 border border-red-900/30 text-red-500 hover:bg-red-900/40 rounded-2xl transition-all font-black text-[10px] uppercase tracking-widest group shadow-2xl"
+                >
+                    <RefreshCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                    Resetar Tudo
+                </button>
             </div>
 
             {loading ? (
@@ -736,11 +770,9 @@ const MataMataManager: React.FC<{ year: number }> = ({ year }) => {
                                     let p2: Competitor | undefined;
 
                                     if (round.prev === null) {
-                                        // Primeira rodada - busca nos classificados
                                         p1 = qualifiers[round.seeds![i][0]];
                                         p2 = qualifiers[round.seeds![i][1]];
                                     } else {
-                                        // Rodadas subsequentes - busca vencedores da anterior
                                         p1 = getComp(getMatchData(round.prev, i * 2)?.winnerId);
                                         p2 = getComp(getMatchData(round.prev, i * 2 + 1)?.winnerId);
                                     }
@@ -787,6 +819,12 @@ const MatchManagerCard: React.FC<{
     const handleS2Change = (val: number) => { setS2(val); setHasChanged(true); };
     const handleSetWinner = (id: string | null) => { setWinnerId(id); setHasChanged(true); };
 
+    const handleReset = () => {
+        if (confirm('Deseja redefinir os pontos e o vencedor deste confronto?')) {
+            onSave(id, p1?.id || '', p2?.id || '', 0, 0, null);
+        }
+    };
+
     if (!p1 && !p2) return (
         <div className="bg-slate-900/30 border border-slate-800/50 p-6 rounded-[28px] opacity-40 flex items-center justify-center italic text-slate-600 text-xs">
             Aguardando definição dos confrontos anteriores...
@@ -796,7 +834,17 @@ const MatchManagerCard: React.FC<{
     return (
         <div className={`bg-slate-900 border-2 rounded-[32px] p-6 transition-all shadow-xl ${hasChanged ? 'border-wood-500 shadow-wood-900/10' : 'border-slate-800'}`}>
             <div className="space-y-6">
-                {/* Jogador 1 */}
+                <div className="flex justify-between items-center px-1">
+                    <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">ID: {id.split('-').pop()}</span>
+                    <button 
+                        onClick={handleReset}
+                        className="p-2 text-slate-700 hover:text-red-400 transition-colors"
+                        title="Redefinir Confronto"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                    </button>
+                </div>
+
                 <div className={`flex items-center gap-4 p-4 rounded-2xl transition-all ${winnerId === p1?.id ? 'bg-wood-600/10 border border-wood-500/20' : 'bg-slate-950 border border-slate-800'}`}>
                     <div className="flex-1 flex flex-col">
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Competidor A</span>
@@ -820,7 +868,6 @@ const MatchManagerCard: React.FC<{
                     <div className="bg-slate-900 px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest italic">Versus</div>
                 </div>
 
-                {/* Jogador 2 */}
                 <div className={`flex items-center gap-4 p-4 rounded-2xl transition-all ${winnerId === p2?.id ? 'bg-wood-600/10 border border-wood-500/20' : 'bg-slate-950 border border-slate-800'}`}>
                     <div className="flex-1 flex flex-col">
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Competidor B</span>
