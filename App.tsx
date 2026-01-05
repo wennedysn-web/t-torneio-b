@@ -35,14 +35,14 @@ const sortCompetitors = (competitors: Competitor[]) => {
 // --- BRACKET UI COMPONENTS ---
 
 const MatchCard: React.FC<{ p1?: Competitor, p2?: Competitor, score1?: number, score2?: number, winnerId?: string | null }> = ({ p1, p2, score1, score2, winnerId }) => (
-  <div className="w-56 flex flex-col bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden shadow-2xl backdrop-blur-sm">
-    <div className={`flex items-center justify-between px-3 py-2 border-b border-slate-800/50 ${winnerId === p1?.id && p1 ? 'bg-wood-600/10' : ''}`}>
+  <div className="w-56 h-20 flex flex-col bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden shadow-2xl backdrop-blur-sm shrink-0">
+    <div className={`flex items-center justify-between px-3 h-10 border-b border-slate-800/50 ${winnerId === p1?.id && p1 ? 'bg-wood-600/10' : ''}`}>
       <span className={`text-[11px] font-bold truncate flex-1 uppercase tracking-tight ${p1 ? 'text-slate-100' : 'text-slate-600 italic'}`}>
         {p1 ? p1.name : 'TBD'}
       </span>
       {score1 !== undefined && <span className={`ml-2 font-black text-xs ${winnerId === p1?.id ? 'text-wood-500' : 'text-slate-500'}`}>{score1}</span>}
     </div>
-    <div className={`flex items-center justify-between px-3 py-2 ${winnerId === p2?.id && p2 ? 'bg-wood-600/10' : ''}`}>
+    <div className={`flex items-center justify-between px-3 h-10 ${winnerId === p2?.id && p2 ? 'bg-wood-600/10' : ''}`}>
       <span className={`text-[11px] font-bold truncate flex-1 uppercase tracking-tight ${p2 ? 'text-slate-100' : 'text-slate-600 italic'}`}>
         {p2 ? p2.name : 'TBD'}
       </span>
@@ -52,7 +52,7 @@ const MatchCard: React.FC<{ p1?: Competitor, p2?: Competitor, score1?: number, s
 );
 
 const SVGConnector: React.FC<{ height: number, type: 'join' | 'straight' }> = ({ height, type }) => (
-  <div className="flex items-center" style={{ height }}>
+  <div className="flex items-center shrink-0" style={{ height }}>
     <svg width="40" height={height} viewBox={`0 0 40 ${height}`} fill="none" className="overflow-visible">
       {type === 'join' ? (
         <path 
@@ -63,6 +63,16 @@ const SVGConnector: React.FC<{ height: number, type: 'join' | 'straight' }> = ({
         <path d={`M 0 ${height/2} L 40 ${height/2}`} stroke="#334155" strokeWidth="2" strokeLinecap="round" />
       )}
     </svg>
+  </div>
+);
+
+const RoundHeader: React.FC<{ title: string }> = ({ title }) => (
+  <div className="mb-10 text-center">
+    <div className="inline-block px-5 py-2 rounded-xl bg-slate-900 border border-slate-800 shadow-xl">
+      <h6 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">
+        {title}
+      </h6>
+    </div>
   </div>
 );
 
@@ -118,6 +128,7 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
     );
 
     const isLivre = selectedCategory === 'Livre';
+    const bracketHeight = isLivre ? 1100 : 700;
 
     return (
       <div className="max-w-[1500px] mx-auto p-4 sm:p-8">
@@ -147,79 +158,96 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
         </div>
 
         <div className="overflow-x-auto pb-24 no-scrollbar">
-          <div className="flex items-center justify-start min-w-[1300px] px-10">
+          <div className="flex items-start justify-start min-w-[1300px] px-10 gap-0" style={{ height: bracketHeight + 100 }}>
+            
+            {/* OITAVAS DE FINAL */}
             {isLivre && (
               <>
-                <div className="flex flex-col gap-10">
-                  <h6 className="text-[9px] font-black text-slate-700 uppercase tracking-[0.4em] mb-4 text-center">Oitavas de Final</h6>
-                  {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
-                    <MatchCard key={i} p1={qualifiers[i*2]} p2={qualifiers[i*2+1]} />
-                  ))}
+                <div className="flex flex-col w-56">
+                  <RoundHeader title="Oitavas de Final" />
+                  <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
+                    {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
+                      <MatchCard key={i} p1={qualifiers[i*2]} p2={qualifiers[i*2+1]} />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-20 py-20">
-                  {[0, 1, 2, 3].map(i => <SVGConnector key={i} height={176} type="join" />)}
+                <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
+                  {[0, 1, 2, 3].map(i => <SVGConnector key={i} height={bracketHeight/4} type="join" />)}
                 </div>
               </>
             )}
 
-            <div className={`flex flex-col ${isLivre ? 'gap-[132px] mt-16' : 'gap-12'}`}>
-              <h6 className="text-[9px] font-black text-slate-700 uppercase tracking-[0.4em] mb-4 text-center">Quartas de Final</h6>
-              {[0, 1, 2, 3].map(i => (
+            {/* QUARTAS DE FINAL */}
+            <div className="flex flex-col w-56">
+              <RoundHeader title="Quartas de Final" />
+              <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
+                {[0, 1, 2, 3].map(i => (
+                  <MatchCard 
+                    key={i} 
+                    p1={isLivre ? getCompetitor(getMatchData('R16', i*2)?.winnerId) : qualifiers[i*2]} 
+                    p2={isLivre ? getCompetitor(getMatchData('R16', i*2+1)?.winnerId) : qualifiers[i*2+1]} 
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
+              {[0, 1].map(i => <SVGConnector key={i} height={bracketHeight/2} type="join" />)}
+            </div>
+
+            {/* SEMI-FINAL */}
+            <div className="flex flex-col w-56">
+              <RoundHeader title="Semi-Final" />
+              <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
+                {[0, 1].map(i => (
+                  <MatchCard 
+                    key={i} 
+                    p1={getCompetitor(getMatchData('QF', i*2)?.winnerId)} 
+                    p2={getCompetitor(getMatchData('QF', i*2+1)?.winnerId)} 
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
+               <SVGConnector height={bracketHeight} type="join" />
+            </div>
+
+            {/* GRANDE FINAL */}
+            <div className="flex flex-col w-56">
+              <RoundHeader title="Grande Final" />
+              <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
                 <MatchCard 
-                  key={i} 
-                  p1={isLivre ? getCompetitor(getMatchData('R16', i*2)?.winnerId) : qualifiers[i*2]} 
-                  p2={isLivre ? getCompetitor(getMatchData('R16', i*2+1)?.winnerId) : qualifiers[i*2+1]} 
+                  p1={getCompetitor(getMatchData('SF', 0)?.winnerId)} 
+                  p2={getCompetitor(getMatchData('SF', 1)?.winnerId)} 
                 />
-              ))}
+              </div>
             </div>
 
-            <div className={`flex flex-col ${isLivre ? 'gap-[264px] py-40' : 'gap-24 py-20'}`}>
-              {[0, 1].map(i => <SVGConnector key={i} height={isLivre ? 352 : 160} type="join" />)}
-            </div>
-
-            <div className={`flex flex-col ${isLivre ? 'gap-[310px] mt-32' : 'gap-32 mt-12'}`}>
-              <h6 className="text-[9px] font-black text-slate-700 uppercase tracking-[0.4em] mb-4 text-center">Semi-Final</h6>
-              {[0, 1].map(i => (
-                <MatchCard 
-                  key={i} 
-                  p1={getCompetitor(getMatchData('QF', i*2)?.winnerId)} 
-                  p2={getCompetitor(getMatchData('QF', i*2+1)?.winnerId)} 
-                />
-              ))}
-            </div>
-
-            <div className="mt-40">
-               <SVGConnector height={isLivre ? 640 : 300} type="join" />
-            </div>
-
-            <div className="flex flex-col justify-center mt-56">
-              <h6 className="text-[9px] font-black text-wood-500 uppercase tracking-[0.4em] mb-6 text-center">Grande Final</h6>
-              <MatchCard 
-                p1={getCompetitor(getMatchData('SF', 0)?.winnerId)} 
-                p2={getCompetitor(getMatchData('SF', 1)?.winnerId)} 
-              />
-            </div>
-
-            <div className="mt-56">
+            <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
                <SVGConnector height={80} type="straight" />
             </div>
 
-            <div className="flex flex-col items-center justify-center mt-56 ml-6">
-               <div className="relative">
+            {/* CAMPEÃO */}
+            <div className="flex flex-col w-64 pt-12 items-center">
+              <RoundHeader title="Campeão" />
+              <div className="flex flex-col justify-center items-center" style={{ height: bracketHeight }}>
+                <div className="relative mb-10">
                   <div className="absolute inset-0 bg-wood-500/20 blur-[40px] rounded-full"></div>
-                  <div className="relative bg-slate-900 border-2 border-wood-500 w-24 h-24 rounded-[32px] flex items-center justify-center mb-6 shadow-2xl rotate-12 group hover:rotate-0 transition-transform duration-500">
-                     <Trophy className="w-12 h-12 text-wood-500" />
+                  <div className="relative bg-slate-900 border-2 border-wood-500 w-28 h-28 rounded-[36px] flex items-center justify-center shadow-2xl rotate-12 group hover:rotate-0 transition-all duration-500">
+                     <Trophy className="w-14 h-14 text-wood-500" />
                   </div>
-               </div>
-               <div className="text-center">
-                  <p className="text-[9px] font-black text-wood-500 uppercase tracking-widest mb-3">Campeão</p>
-                  <div className="bg-wood-600 px-8 py-4 rounded-2xl shadow-[0_10px_40px_rgba(166,114,67,0.4)]">
-                     <span className="text-xl font-black text-white uppercase tracking-tighter">
+                </div>
+                <div className="text-center w-full px-4">
+                  <div className="bg-wood-600 px-6 py-5 rounded-[24px] shadow-[0_10px_40px_rgba(166,114,67,0.4)] border border-wood-400/30">
+                    <span className="text-xl font-black text-white uppercase tracking-tighter block truncate">
                         {getCompetitor(getMatchData('F', 0)?.winnerId)?.name || '????'}
-                     </span>
+                    </span>
                   </div>
-               </div>
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -232,14 +260,15 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
   const [isWideMode, setIsWideMode] = useState(false);
   const [showControls, setShowControls] = useState(false);
   
+  // Configurações de visualização ajustáveis pelo usuário para o modo projetor
   const [projectorConfig, setProjectorConfig] = useState({
-    pageZoom: 1.0,
-    cardScale: 1.0,
-    nameSize: 1.125,
-    rankSize: 1.0,
-    scoreSize: 1.875,
-    gapSize: 1.0,
-    columnWidth: 450
+    pageZoom: 1.0,       // Zoom geral da página
+    cardScale: 1.0,      // Controla o padding vertical dos cartões
+    nameSize: 1.125,     // text-lg em rem
+    rankSize: 1.0,       // text-base em rem (ícone de classificação)
+    scoreSize: 1.875,    // text-3xl em rem
+    gapSize: 1.0,        // rem
+    columnWidth: 450     // px
   });
 
   useEffect(() => {
@@ -288,7 +317,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
             width: `${100 / projectorConfig.pageZoom}%`,
             transform: `scale(${projectorConfig.pageZoom})`, 
             transformOrigin: 'top left',
-            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+            transition: 'transform(0.3s cubic-bezier(0.4, 0, 0.2, 1)), width(0.3s cubic-bezier(0.4, 0, 0.2, 1))'
         } : {}}
       >
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-8 border-b border-slate-900 pb-10">
@@ -708,7 +737,7 @@ const App: React.FC = () => {
       {!globalYear && <WelcomeYearModal onSelect={setGlobalYear} />}
       {isYearConfirmOpen && (
          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4">
-            <div className="bg-slate-900 rounded-[40px] p-12 max-w-sm w-full text-center border border-slate-800">
+            <div className="bg-slate-900 rounded-[40px] p-12 max-sm w-full text-center border border-slate-800">
                <h3 className="text-2xl font-black text-slate-100 mb-10 uppercase">Sair?</h3>
                <div className="flex gap-4">
                   <button onClick={() => setIsYearConfirmOpen(false)} className="flex-1 py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black">NÃO</button>
