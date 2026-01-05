@@ -1363,7 +1363,7 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
             {subTab === 'lancamentos' && (
                 <>
                     {!selected ? (
-                        <div className="relative">
+                        <div className="relative animate-in fade-in duration-500">
                             <Search className="absolute left-6 top-6 text-slate-600" />
                             <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-16 pr-8 py-6 rounded-[30px] bg-slate-900 border border-slate-800 text-slate-100 font-black text-xl uppercase tracking-tight outline-none" placeholder="BUSCAR FICHA OU NOME..." />
                             {searchTerm && (
@@ -1384,8 +1384,44 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
                             )}
                         </div>
                     ) : (
-                        <div>
-                            <button onClick={() => setSelected(null)} className="text-slate-500 hover:text-wood-500 font-black text-xs uppercase mb-10 flex items-center gap-2"><RotateCcw className="w-4 h-4" /> VOLTAR</button>
+                        <div className="animate-in fade-in slide-in-from-bottom-8 duration-500 space-y-8">
+                            <div className="flex items-center justify-between">
+                                <button onClick={() => setSelected(null)} className="text-slate-500 hover:text-wood-500 font-black text-xs uppercase flex items-center gap-2 transition-colors">
+                                    <RotateCcw className="w-4 h-4" /> VOLTAR PARA BUSCA
+                                </button>
+                                <div className="flex items-center gap-2 text-slate-600">
+                                    <div className="w-2 h-2 bg-wood-500 rounded-full animate-pulse"></div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">SESSÃO ATIVA</span>
+                                </div>
+                            </div>
+
+                            {/* CABEÇALHO DE IDENTIFICAÇÃO FIXO */}
+                            <div className="bg-slate-900 border-2 border-wood-600 rounded-[32px] p-6 shadow-2xl shadow-wood-900/10 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-5">
+                                    <User className="w-24 h-24" />
+                                </div>
+                                <div className="flex flex-col sm:flex-row items-center gap-6 relative z-10">
+                                    <div className="flex flex-col items-center justify-center bg-wood-600 text-white px-6 py-4 rounded-[20px] shadow-xl min-w-[120px]">
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">FICHA</span>
+                                        <span className="text-3xl font-black font-mono">{selected.id}</span>
+                                    </div>
+                                    <div className="flex-1 text-center sm:text-left">
+                                        <span className="text-[10px] font-black text-wood-500 uppercase tracking-[0.3em] block mb-1">PONTUANDO ATLETA</span>
+                                        <h2 className="text-3xl font-black text-slate-100 uppercase tracking-tighter leading-tight">{selected.name}</h2>
+                                        <div className="flex items-center justify-center sm:justify-start gap-3 mt-3">
+                                            <span className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                {selected.category}
+                                            </span>
+                                            {selected.score !== null && (
+                                                <span className="px-3 py-1 bg-wood-500/10 border border-wood-500/20 rounded-full text-[10px] font-black text-wood-500 uppercase tracking-widest">
+                                                    PONTUADO: {selected.score} PTS
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <TargetBoard initialTargets={selected.targetsHit} onScoreConfirm={async (t) => {
                                 await TournamentService.updateScore(selected.id, t);
                                 await handleScoreSuccess();
