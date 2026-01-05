@@ -109,7 +109,6 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
         
         const sorted = sortCompetitors(Array.from(bestScoresMap.values()));
         
-        // Define quantos classificados dependendo da categoria
         const isLivre = selectedCategory === 'Livre';
         const limit = isLivre ? 16 : 4;
         setQualifiers(sorted.slice(0, limit));
@@ -135,15 +134,11 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
     const isLivre = selectedCategory === 'Livre';
     const bracketHeight = isLivre ? 1100 : 400;
 
-    // Mapeamento de cruzamento olímpico para Livre (16 competidores)
-    // 1v16, 8v9, 5v12, 4v13, 2v15, 7v10, 6v11, 3v14
     const livreSeeds = [
       [0, 15], [7, 8], [4, 11], [3, 12],
       [1, 14], [6, 9], [5, 10], [2, 13]
     ];
 
-    // Mapeamento para outras categorias (4 competidores)
-    // 1v4, 2v3
     const otherSeeds = [
       [0, 3], [1, 2]
     ];
@@ -177,8 +172,6 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
 
         <div className="overflow-x-auto pb-24 no-scrollbar">
           <div className="flex items-start justify-start min-w-[1000px] px-10 gap-0" style={{ height: bracketHeight + 100 }}>
-            
-            {/* OITAVAS DE FINAL (Apenas Livre) */}
             {isLivre && (
               <>
                 <div className="flex flex-col w-56">
@@ -195,7 +188,6 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
               </>
             )}
 
-            {/* QUARTAS DE FINAL (Apenas Livre) */}
             {isLivre && (
               <>
                 <div className="flex flex-col w-56">
@@ -210,14 +202,12 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                     ))}
                   </div>
                 </div>
-
                 <div className="flex flex-col justify-around pt-[60px]" style={{ height: bracketHeight + 60 }}>
                   {[0, 1].map(i => <SVGConnector key={i} height={bracketHeight/2} type="join" />)}
                 </div>
               </>
             )}
 
-            {/* SEMI-FINAL (Todas) */}
             <div className="flex flex-col w-56">
               <RoundHeader title="Semi-Final" />
               <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
@@ -241,21 +231,13 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                <SVGConnector height={bracketHeight} type="join" />
             </div>
 
-            {/* GRANDE FINAL */}
             <div className="flex flex-col w-56">
               <RoundHeader title="Grande Final" />
               <div className="flex flex-col justify-around" style={{ height: bracketHeight }}>
-                {isLivre ? (
-                   <MatchCard 
-                    p1={getCompetitor(getMatchData('SF', 0)?.winnerId)} 
-                    p2={getCompetitor(getMatchData('SF', 1)?.winnerId)} 
-                  />
-                ) : (
                   <MatchCard 
                     p1={getCompetitor(getMatchData('SF', 0)?.winnerId)} 
                     p2={getCompetitor(getMatchData('SF', 1)?.winnerId)} 
                   />
-                )}
               </div>
             </div>
 
@@ -263,7 +245,6 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                <SVGConnector height={80} type="straight" />
             </div>
 
-            {/* CAMPEÃO */}
             <div className="flex flex-col w-64 pt-12 items-center">
               <RoundHeader title="Campeão" />
               <div className="flex flex-col justify-center items-center" style={{ height: bracketHeight }}>
@@ -282,7 +263,6 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </div>
@@ -350,7 +330,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
             width: `${100 / projectorConfig.pageZoom}%`,
             transform: `scale(${projectorConfig.pageZoom})`, 
             transformOrigin: 'top left',
-            transition: 'transform(0.3s cubic-bezier(0.4, 0, 0.2, 1)), width(0.3s cubic-bezier(0.4, 0, 0.2, 1))'
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         } : {}}
       >
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-8 border-b border-slate-900 pb-10">
@@ -470,7 +450,7 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                     <Sliders className="w-5 h-5 text-wood-500" />
                     <h3 className="text-sm font-black text-slate-100 uppercase tracking-widest">Ajuste de Tela</h3>
                 </div>
-                <button onClick={() => setShowControls(false)} className="text-slate-500 hover:text-white"><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowControls(false)} className="text-slate-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scroll">
@@ -487,9 +467,70 @@ const LeaderboardPage: React.FC<{ year: number }> = ({ year }) => {
                         className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
                     />
                 </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Largura Coluna</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.columnWidth}px</span>
+                    </div>
+                    <input 
+                        type="range" min="200" max="1200" step="10" value={projectorConfig.columnWidth} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, columnWidth: parseInt(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tamanho do Cartão</label>
+                        <span className="text-[10px] font-mono text-wood-500">{(projectorConfig.cardScale * 100).toFixed(0)}%</span>
+                    </div>
+                    <input 
+                        type="range" min="0.4" max="2.0" step="0.05" value={projectorConfig.cardScale} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, cardScale: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fonte do Nome</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.nameSize}rem</span>
+                    </div>
+                    <input 
+                        type="range" min="0.5" max="3.0" step="0.1" value={projectorConfig.nameSize} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, nameSize: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fonte Pontos</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.scoreSize}rem</span>
+                    </div>
+                    <input 
+                        type="range" min="1.0" max="6.0" step="0.2" value={projectorConfig.scoreSize} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, scoreSize: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Espaçamento</label>
+                        <span className="text-[10px] font-mono text-wood-500">{projectorConfig.gapSize}rem</span>
+                    </div>
+                    <input 
+                        type="range" min="0.1" max="4.0" step="0.1" value={projectorConfig.gapSize} 
+                        onChange={(e) => setProjectorConfig({...projectorConfig, gapSize: parseFloat(e.target.value)})}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-wood-600"
+                    />
+                </div>
+                
                 <button 
                     onClick={resetConfig}
-                    className="w-full py-3 bg-slate-950 border border-slate-800 text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-800 hover:text-white transition-all sticky bottom-0"
+                    className="w-full py-3 bg-slate-950 border border-slate-800 text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-800 hover:text-white transition-all sticky bottom-0 z-10"
                 >
                     Resetar Padrão
                 </button>
@@ -730,11 +771,11 @@ const App: React.FC = () => {
       {!globalYear && <WelcomeYearModal onSelect={setGlobalYear} />}
       {isYearConfirmOpen && (
          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4">
-            <div className="bg-slate-900 rounded-[40px] p-12 max-sm w-full text-center border border-slate-800">
-               <h3 className="text-2xl font-black text-slate-100 mb-10 uppercase">Sair?</h3>
+            <div className="bg-slate-900 rounded-[40px] p-12 max-w-sm w-full text-center border border-slate-800">
+               <h3 className="text-2xl font-black text-slate-100 mb-10 uppercase tracking-tighter">Sair?</h3>
                <div className="flex gap-4">
-                  <button onClick={() => setIsYearConfirmOpen(false)} className="flex-1 py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black">NÃO</button>
-                  <button onClick={() => { setGlobalYear(null); setIsYearConfirmOpen(false); }} className="flex-1 py-4 bg-wood-600 text-white font-black rounded-2xl">SIM</button>
+                  <button onClick={() => setIsYearConfirmOpen(false)} className="flex-1 py-4 rounded-2xl border-2 border-slate-800 text-slate-500 font-black uppercase text-xs">NÃO</button>
+                  <button onClick={() => { setGlobalYear(null); setIsYearConfirmOpen(false); }} className="flex-1 py-4 bg-wood-600 text-white font-black rounded-2xl uppercase text-xs">SIM</button>
                </div>
             </div>
          </div>
