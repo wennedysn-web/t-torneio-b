@@ -4,13 +4,14 @@ import { Navbar } from './components/Navbar';
 import { TargetBoard } from './components/TargetBoard';
 import { TournamentService, supabase, MatchResult } from './services/storage';
 import { Competitor, CategoryDef } from './types';
-import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2, Hash, Zap } from 'lucide-react';
+import { Trophy, Search, User, AlertCircle, Medal, BadgePlus, Check, Trash2, Edit2, Save, X, GitMerge, Users, Database, RefreshCw, Settings, Plus, Tag, Wifi, WifiOff, AlertTriangle, Scale, Calendar, ArrowRight, RotateCcw, Gavel, Monitor, Layout, Maximize, Minimize, Swords, Lock, Target, Info, Sliders, ChevronUp, ChevronDown, Maximize2, Hash, Zap, Flame } from 'lucide-react';
 
 // --- UTILS ---
 
 const formatTargets = (c: Competitor): string => {
   if (!c.targetsHit || c.targetsHit.length === 0) return "";
-  return [...c.targetsHit].sort((a, b) => b - a).join(' · ');
+  // Filtra pontos de desempate (1) para não poluir a visualização de alvos
+  return [...c.targetsHit].filter(t => t > 1).sort((a, b) => b - a).join(' · ');
 };
 
 const compareCompetitors = (a: Competitor, b: Competitor): number => {
@@ -343,7 +344,119 @@ const BracketPage: React.FC<{ year: number }> = ({ year }) => {
     );
 };
 
-// --- COMPONENTE DE GERENCIAMENTO AVANÇADO ---
+// --- COMPONENTE DE GESTÃO DE EMPATES ---
+
+const TieBreakerManager: React.FC<{ year: number }> = ({ year }) => {
+    const [competitors, setCompetitors] = useState<Competitor[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const load = async () => {
+        setLoading(true);
+        const data = await TournamentService.getAll();
+        setCompetitors(data.filter(c => c.year === year && (c.score || 0) > 0));
+        setLoading(false);
+    };
+
+    useEffect(() => { load(); }, [year]);
+
+    // Lógica para encontrar grupos de empate técnico
+    const tieGroups = useMemo(() => {
+        const groups: Record<string, Competitor[]> = {};
+        competitors.forEach(c => {
+            // Um empate técnico real é quando Score e Distribuição de Alvos (sem bônus) são iguais
+            const baseHits = c.targetsHit.filter(t => t > 1).sort((a,b) => a-b).join(',');
+            const key = `${c.category}-${c.score}-${baseHits}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(c);
+        });
+        // Retorna apenas grupos com mais de 1 competidor
+        return Object.values(groups).filter(g => g.length > 1);
+    }, [competitors]);
+
+    const handleApplyBonus = async (c: Competitor) => {
+        const newTargets = [...c.targetsHit, 1]; // Adiciona 1 ponto de desempate
+        await TournamentService.updateScore(c.id, newTargets);
+        load();
+    };
+
+    const handleResetBonus = async (c: Competitor) => {
+        const newTargets = c.targetsHit.filter(t => t > 1);
+        await TournamentService.updateScore(c.id, newTargets);
+        load();
+    };
+
+    if (loading) return <div className="flex justify-center p-20"><RefreshCw className="animate-spin text-wood-500" /></div>;
+
+    return (
+        <div className="space-y-10 animate-in fade-in duration-500">
+            <div className="text-center max-w-2xl mx-auto space-y-4">
+                <div className="inline-flex items-center gap-3 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-500 font-black text-[10px] uppercase tracking-widest">
+                    <AlertTriangle className="w-3 h-3" /> Monitor de Conflitos
+                </div>
+                <h3 className="text-2xl font-black text-slate-100 uppercase tracking-tighter">Empates Técnicos Detectados</h3>
+                <p className="text-slate-500 text-sm font-medium">Competidores com pontuação e alvos idênticos. Use o bônus de duelo (+1) para definir a posição no Ranking.</p>
+            </div>
+
+            <div className="grid gap-8">
+                {tieGroups.map((group, idx) => (
+                    <div key={idx} className="bg-slate-900 border border-slate-800 rounded-[32px] overflow-hidden shadow-2xl">
+                        <div className="bg-slate-800/50 px-8 py-4 border-b border-slate-800 flex justify-between items-center">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conflito de {group[0].score} Pontos · {group[0].category}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping"></span>
+                                <span className="text-[10px] font-black text-amber-500 uppercase">Ação Necessária</span>
+                            </div>
+                        </div>
+                        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {group.map(c => {
+                                const hasBonus = c.targetsHit.includes(1);
+                                return (
+                                    <div key={c.id} className={`p-6 rounded-2xl border-2 transition-all flex justify-between items-center ${hasBonus ? 'bg-wood-600/10 border-wood-600 shadow-lg' : 'bg-slate-950 border-slate-800'}`}>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <span className="text-wood-500 font-mono font-black text-xs">{c.id}</span>
+                                                {hasBonus && <Zap className="w-3 h-3 text-wood-500 fill-wood-500" />}
+                                            </div>
+                                            <div className="text-slate-100 font-black text-lg uppercase truncate">{c.name}</div>
+                                            <div className="text-[9px] text-slate-600 font-bold uppercase tracking-widest mt-1">Alvos: {formatTargets(c)}</div>
+                                        </div>
+                                        <div className="flex gap-2 shrink-0 ml-4">
+                                            {hasBonus ? (
+                                                <button 
+                                                    onClick={() => handleResetBonus(c)}
+                                                    className="p-3 bg-slate-900 text-slate-500 hover:text-white rounded-xl border border-slate-800 transition-colors"
+                                                    title="Limpar Bônus"
+                                                >
+                                                    <RotateCcw className="w-5 h-5" />
+                                                </button>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => handleApplyBonus(c)}
+                                                    className="flex items-center gap-2 px-4 py-3 bg-wood-600 hover:bg-wood-700 text-white rounded-xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all"
+                                                >
+                                                    <Flame className="w-4 h-4" /> Vencer Duelo
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+
+                {tieGroups.length === 0 && (
+                    <div className="text-center py-24 bg-slate-900/50 border border-dashed border-slate-800 rounded-[40px]">
+                        <Check className="w-12 h-12 text-emerald-500/30 mx-auto mb-4" />
+                        <p className="text-slate-600 font-black uppercase tracking-widest text-xs">Nenhum empate técnico pendente</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- PAGINA DE GESTÃO ---
 
 const ManageParticipantsPage: React.FC<{ year: number }> = ({ year }) => {
     const [subView, setSubView] = useState<'comps' | 'cats' | 'system'>('comps');
@@ -1198,7 +1311,7 @@ const MatchManagerCard: React.FC<{
 };
 
 const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
-    const [subTab, setSubTab] = useState<'lancamentos' | 'matamata'>('lancamentos');
+    const [subTab, setSubTab] = useState<'lancamentos' | 'matamata' | 'empates'>('lancamentos');
     const [searchTerm, setSearchTerm] = useState('');
     const [selected, setSelected] = useState<Competitor | null>(null);
     const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -1238,10 +1351,16 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
                     >
                         <GitMerge className="w-4 h-4" /> Mata-Mata
                     </button>
+                    <button 
+                        onClick={() => setSubTab('empates')}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-[10px] transition-all uppercase tracking-widest ${subTab === 'empates' ? 'bg-slate-800 text-wood-500 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <Swords className="w-4 h-4" /> Empates
+                    </button>
                 </div>
             </div>
 
-            {subTab === 'lancamentos' ? (
+            {subTab === 'lancamentos' && (
                 <>
                     {!selected ? (
                         <div className="relative">
@@ -1274,9 +1393,17 @@ const ScoringPage: React.FC<{ year: number }> = ({ year }) => {
                         </div>
                     )}
                 </>
-            ) : (
+            )}
+
+            {subTab === 'matamata' && (
                 <div className="animate-in fade-in slide-in-from-right-10 duration-500">
                     <MataMataManager year={year} />
+                </div>
+            )}
+
+            {subTab === 'empates' && (
+                <div className="animate-in fade-in slide-in-from-right-10 duration-500">
+                    <TieBreakerManager year={year} />
                 </div>
             )}
         </div>
